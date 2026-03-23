@@ -105,8 +105,9 @@ static void MiClouds_Ctor(MiClouds *unit) {
         return;
     }
     
-    int largeBufSize = 118784;
-    int smallBufSize = 65536-128;
+    // 1 minute of 16-bit audio per channel; large = small + ~64k FX workspace
+    int smallBufSize = (int)(60.0 * SAMPLERATE) * sizeof(int16_t);
+    int largeBufSize = smallBufSize + 65536;
     
     // alloc mem
     unit->large_buffer = (uint8_t*)RTAlloc(unit->mWorld, largeBufSize * sizeof(uint8_t));
