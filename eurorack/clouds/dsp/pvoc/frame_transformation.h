@@ -37,7 +37,7 @@
 
 namespace clouds {
 
-const int32_t kMaxNumTextures = 7;
+const int32_t kMaxNumTextures = 65536;
 const int32_t kHighFrequencyTruncation = 16;
 
 struct Parameters;
