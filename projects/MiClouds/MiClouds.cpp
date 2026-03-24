@@ -105,9 +105,19 @@ static void MiClouds_Ctor(MiClouds *unit) {
         return;
     }
     
-    // 1 minute of 16-bit audio per channel; large = small + ~64k FX workspace
-    int smallBufSize = (int)(60.0 * SAMPLERATE) * sizeof(int16_t);
-    int largeBufSize = smallBufSize + 65536;
+    // In stereo mode: both channels use smallBufSize for audio/spectral memory.
+    // workspace (reverb, diffuser, correlator) = largeBufSize - smallBufSize.
+    const int kFftSize      = clouds::kMaxFftSize;
+    const int kFftOverhead  = sizeof(float) * (
+        kFftSize +                              // fft or ifft buffer
+        (kFftSize + (kFftSize >> 1)) * 2        // analysis + synthesis buffers
+    );
+    const int kNumTextures  = 512;              // ~11s spectral memory at 48kHz (hop=1024)
+    const int kTextureSpace = sizeof(float) * kNumTextures *
+        (kFftSize / 2 - clouds::kHighFrequencyTruncation);
+    const int kWorkspace    = 53376;            // diffuser + reverb + correlator
+    int smallBufSize = kFftOverhead + kTextureSpace;
+    int largeBufSize = smallBufSize + kWorkspace;
     
     // alloc mem
     unit->large_buffer = (uint8_t*)RTAlloc(unit->mWorld, largeBufSize * sizeof(uint8_t));
