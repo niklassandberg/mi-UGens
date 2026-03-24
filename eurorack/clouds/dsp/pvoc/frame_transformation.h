@@ -85,7 +85,7 @@ class FrameTransformation {
   int32_t write_head_;
   
   // Magnitude buffers.
-  float* textures_[kMaxNumTextures];
+  float* texture_buffer_;
   
   // Original phase and phase unrolling buffers.
   uint16_t* phases_;

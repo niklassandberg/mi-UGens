@@ -49,11 +49,9 @@ void FrameTransformation::Init(
   fft_size_ = fft_size;
   size_ = (fft_size >> 1) - kHighFrequencyTruncation;
   
-  for (int32_t i = 0; i < num_textures; ++i) {
-    textures_[i] = &buffer[i * size_];
-  }
-  phases_ = static_cast<uint16_t*>((void*)(textures_[num_textures - 1]));
+  texture_buffer_ = buffer;
   num_textures_ = num_textures - 1;  // Last texture is used for storing phases.
+  phases_ = static_cast<uint16_t*>((void*)(&texture_buffer_[num_textures_ * size_]));
   phases_delta_ = phases_ + size_;
 
   write_head_ = 0;
@@ -62,9 +60,7 @@ void FrameTransformation::Init(
 }
 
 void FrameTransformation::Reset() {
-  for (int32_t i = 0; i < num_textures_; ++i) {
-    fill(&textures_[i][0], &textures_[i][size_], 0.0f);
-  }
+  fill(&texture_buffer_[0], &texture_buffer_[num_textures_ * size_], 0.0f);
   write_head_ = 0;
 }
 
@@ -305,8 +301,8 @@ void FrameTransformation::StoreMagnitudes(
   float gain_a = 1.0f;
   float gain_b = 0.0f;
 
-  float* a = textures_[write_head_];
-  float* b = textures_[write_head_];
+  float* a = &texture_buffer_[write_head_ * size_];
+  float* b = &texture_buffer_[write_head_ * size_];
   
   if (feedback >= 0.5f) {
     feedback = 2.0f * (feedback - 0.5f);
@@ -355,8 +351,8 @@ void FrameTransformation::ReplayMagnitudes(float* xf_polar, float position) {
   if (pos_a < 0) pos_a = num_textures_ + pos_a;
   int32_t pos_b = write_head_ - (offset + 1);
   if (pos_b < 0) pos_b = num_textures_ + pos_b;
-  float* a = textures_[pos_a];
-  float* b = textures_[pos_b];
+  float* a = &texture_buffer_[pos_a * size_];
+  float* b = &texture_buffer_[pos_b * size_];
   for (int32_t i = 0; i < size_; ++i) {
     xf_polar[i] = Crossfade(a[i], b[i], index_fractional);
   }
