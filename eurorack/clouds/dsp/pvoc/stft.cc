@@ -31,6 +31,7 @@
 #include <algorithm>
 
 #include "clouds/dsp/pvoc/frame_transformation.h"
+#include "clouds/dsp/parameters.h"
 #include "stmlib/dsp/dsp.h"
 
 namespace clouds {
