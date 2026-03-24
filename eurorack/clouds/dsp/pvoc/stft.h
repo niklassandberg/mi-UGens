@@ -103,10 +103,9 @@ class STFT {
   
   size_t ready_;
   size_t done_;
-
+  
   const Parameters* parameters_;
-  float last_position_;
-
+  
   Modifier* modifier_;
   
   DISALLOW_COPY_AND_ASSIGN(STFT);

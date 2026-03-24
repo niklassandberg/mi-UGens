@@ -31,7 +31,6 @@
 #include <algorithm>
 
 #include "clouds/dsp/pvoc/frame_transformation.h"
-#include "clouds/dsp/parameters.h"
 #include "stmlib/dsp/dsp.h"
 
 namespace clouds {
@@ -86,7 +85,6 @@ void STFT::Reset() {
   fill(&synthesis_[0], &synthesis_[buffer_size_], 0.0f);
   ready_ = 0;
   done_ = 0;
-  last_position_ = -100.0f;
 }
 
 void STFT::Process(
@@ -175,17 +173,6 @@ void STFT::Buffer() {
   }
 #endif  // USE_ARM_FFT
   
-  // If position jumped significantly, clear the synthesis buffer so old
-  // frames (potentially seconds away in spectral time) don't bleed through.
-  if (parameters_ != NULL) {
-    float pos = parameters_->position;
-    float diff = pos - last_position_;
-    if ((diff > 0.05f) || (diff < -0.05f)) {
-      fill(&synthesis_[0], &synthesis_[buffer_size_], 0.0f);
-    }
-    last_position_ = pos;
-  }
-
   size_t destination_ptr = process_ptr_;
 #ifdef USE_ARM_FFT
   float inverse_window_size = 1.0f / \
