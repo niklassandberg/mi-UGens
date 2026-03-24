@@ -115,8 +115,12 @@ static void MiClouds_Ctor(MiClouds *unit) {
     const int kNumTextures  = 512;              // ~11s spectral memory at 48kHz (hop=1024)
     const int kTextureSpace = sizeof(float) * kNumTextures *
         (kFftSize / 2 - clouds::kHighFrequencyTruncation);
+    // Phase ring: one uint16_t phase snapshot per bin per texture frame.
+    // Eliminates current-audio phase bleed when replaying old textures.
+    const int kPhaseRingSpace = sizeof(uint16_t) * (kNumTextures - 1) *
+        (kFftSize / 2 - clouds::kHighFrequencyTruncation);
     const int kWorkspace    = 53376;            // diffuser + reverb + correlator
-    int smallBufSize = kFftOverhead + kTextureSpace;
+    int smallBufSize = kFftOverhead + kTextureSpace + kPhaseRingSpace;
     int largeBufSize = smallBufSize + kWorkspace;
     
     // alloc mem

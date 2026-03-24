@@ -50,9 +50,11 @@ void FrameTransformation::Init(
   size_ = (fft_size >> 1) - kHighFrequencyTruncation;
   
   texture_buffer_ = buffer;
-  num_textures_ = num_textures - 1;  // Last texture is used for storing phases.
+  num_textures_ = num_textures - 1;  // Last texture slot used for phases_/phases_delta_.
   phases_ = static_cast<uint16_t*>((void*)(&texture_buffer_[num_textures_ * size_]));
   phases_delta_ = phases_ + size_;
+  // Phase ring buffer follows immediately after phases_ and phases_delta_.
+  phase_texture_buffer_ = phases_delta_ + size_;
 
   write_head_ = 0;
   glitch_algorithm_ = 0;
@@ -61,6 +63,7 @@ void FrameTransformation::Init(
 
 void FrameTransformation::Reset() {
   fill(&texture_buffer_[0], &texture_buffer_[num_textures_ * size_], 0.0f);
+  fill(&phase_texture_buffer_[0], &phase_texture_buffer_[num_textures_ * size_], (uint16_t)0);
   write_head_ = 0;
 }
 
@@ -299,12 +302,12 @@ void FrameTransformation::StoreMagnitudes(
     float* xf_polar,
     float position,
     float feedback) {
-  // Always write a full snapshot into write_head_ slot.
-  // The stochastic/blending approach from the original 7-frame design
-  // does not scale to a 512-frame ring buffer — partial bin updates
-  // would take minutes to clear the buffer.
   float* a = &texture_buffer_[write_head_ * size_];
   copy(xf_polar, xf_polar + size_, a);
+  // Store the current analysis phases alongside the magnitudes so that
+  // ReplayMagnitudes can restore them, eliminating current-audio phase bleed.
+  uint16_t* pa = &phase_texture_buffer_[write_head_ * size_];
+  copy(phases_, phases_ + size_, pa);
   write_head_ = (write_head_ + 1) % num_textures_;
 }
 
@@ -318,6 +321,18 @@ void FrameTransformation::ReplayMagnitudes(float* xf_polar, float position) {
   float* b = &texture_buffer_[pos_b * size_];
   for (int32_t i = 0; i < size_; ++i) {
     xf_polar[i] = Crossfade(a[i], b[i], index_fractional);
+  }
+  // Restore phases from the stored frames so that synthesis uses the
+  // phases of the replayed audio, not the current live input.
+  uint16_t* pa = &phase_texture_buffer_[pos_a * size_];
+  uint16_t* pb = &phase_texture_buffer_[pos_b * size_];
+  for (int32_t i = 0; i < size_; ++i) {
+    // Interpolate phase (uint16_t wrapping handles 0/65535 boundary).
+    uint16_t phase_ab = static_cast<uint16_t>(pa[i] - pb[i]);
+    phases_[i] = pb[i] + static_cast<uint16_t>(
+        static_cast<float>(phase_ab) * (1.0f - index_fractional));
+    // Phase advance rate for synthesis: newer frame minus older frame.
+    phases_delta_[i] = phase_ab;
   }
 }
 
