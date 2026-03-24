@@ -207,8 +207,10 @@ void FrameTransformation::AddGlitch(float* xf_polar) {
 void FrameTransformation::QuantizeMagnitudes(float* xf_polar, float amount) {
   if (amount <= 0.48f) {
     amount = amount * 2.0f;
-    float scale_down = 0.5f * SemitonesToRatio(
-        -108.0f * (1.0f - amount * amount));
+    // Float STFT magnitudes are 32768x smaller than the original int16 STFT.
+    // Original formula was * 0.5 / fft_size_; net int16 factor = 32768/fft_size_ = 8.
+    float scale_down = 0.5f * (32768.0f / float(fft_size_)) *
+        SemitonesToRatio(-108.0f * (1.0f - amount * amount));
     float scale_up = 1.0f / scale_down;
     for (int32_t i = 0.0f; i < size_; ++i) {
       xf_polar[i] = scale_up * static_cast<float>(
