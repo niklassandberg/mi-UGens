@@ -82,6 +82,7 @@ class FrameTransformation {
   int32_t fft_size_;
   int32_t num_textures_;
   int32_t size_;
+  int32_t write_head_;
   
   // Magnitude buffers.
   float* textures_[kMaxNumTextures];

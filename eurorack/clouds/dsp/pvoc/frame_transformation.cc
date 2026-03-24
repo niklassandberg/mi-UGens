@@ -56,6 +56,7 @@ void FrameTransformation::Init(
   num_textures_ = num_textures - 1;  // Last texture is used for storing phases.
   phases_delta_ = phases_ + size_;
 
+  write_head_ = 0;
   glitch_algorithm_ = 0;
   Reset();
 }
@@ -64,6 +65,7 @@ void FrameTransformation::Reset() {
   for (int32_t i = 0; i < num_textures_; ++i) {
     fill(&textures_[i][0], &textures_[i][size_], 0.0f);
   }
+  write_head_ = 0;
 }
 
 void FrameTransformation::Process(
@@ -299,15 +301,12 @@ void FrameTransformation::StoreMagnitudes(
     float* xf_polar,
     float position,
     float feedback) {
-  // Write into magnitude buffers.
-  float index_float = position * float(num_textures_ - 1);
-  int32_t index_int = static_cast<int32_t>(index_float);
-  float index_fractional = index_float - index_int;
-  float gain_a = 1.0f - index_fractional;
-  float gain_b = index_fractional;
-  
-  float* a = textures_[index_int];
-  float* b = textures_[index_int + (position == 1.0f ? 0 : 1)];
+  // Write sequentially into ring buffer at write_head_.
+  float gain_a = 1.0f;
+  float gain_b = 0.0f;
+
+  float* a = textures_[write_head_];
+  float* b = textures_[write_head_];
   
   if (feedback >= 0.5f) {
     feedback = 2.0f * (feedback - 0.5f);
@@ -345,14 +344,19 @@ void FrameTransformation::StoreMagnitudes(
       b[i] = Crossfade(b[i], x, gain_b * gain);
     }
   }
+  write_head_ = (write_head_ + 1) % num_textures_;
 }
 
 void FrameTransformation::ReplayMagnitudes(float* xf_polar, float position) {
   float index_float = position * float(num_textures_ - 1);
-  int32_t index_int = static_cast<int32_t>(index_float);
-  float index_fractional = index_float - static_cast<float>(index_int);
-  float* a = textures_[index_int];
-  float* b = textures_[index_int + (position == 1.0f ? 0 : 1)];
+  int32_t offset = static_cast<int32_t>(index_float);
+  float index_fractional = index_float - static_cast<float>(offset);
+  int32_t pos_a = write_head_ - offset;
+  if (pos_a < 0) pos_a = num_textures_ + pos_a;
+  int32_t pos_b = write_head_ - (offset + 1);
+  if (pos_b < 0) pos_b = num_textures_ + pos_b;
+  float* a = textures_[pos_a];
+  float* b = textures_[pos_b];
   for (int32_t i = 0; i < size_; ++i) {
     xf_polar[i] = Crossfade(a[i], b[i], index_fractional);
   }
