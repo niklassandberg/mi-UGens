@@ -337,10 +337,10 @@ void FrameTransformation::RestorePhases(float position) {
   uint16_t* pa = &phase_texture_buffer_[pos_a * size_];
   uint16_t* pb = &phase_texture_buffer_[pos_b * size_];
   for (int32_t i = 0; i < size_; ++i) {
-    uint16_t phase_ab = static_cast<uint16_t>(pa[i] - pb[i]);
-    phases_[i] = pb[i] + static_cast<uint16_t>(
-        static_cast<float>(phase_ab) * (1.0f - index_fractional));
-    phases_delta_[i] = phase_ab;
+    // Only update the phase advance rate from the stored frames.
+    // Resetting phases_[] to the same stored value every hop causes a
+    // static/robotic sound — let it accumulate freely instead.
+    phases_delta_[i] = static_cast<uint16_t>(pa[i] - pb[i]);
   }
 }
 
