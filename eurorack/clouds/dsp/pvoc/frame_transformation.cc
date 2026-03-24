@@ -297,49 +297,12 @@ void FrameTransformation::StoreMagnitudes(
     float* xf_polar,
     float position,
     float feedback) {
-  // Write sequentially into ring buffer at write_head_.
-  float gain_a = 1.0f;
-  float gain_b = 0.0f;
-
+  // Always write a full snapshot into write_head_ slot.
+  // The stochastic/blending approach from the original 7-frame design
+  // does not scale to a 512-frame ring buffer — partial bin updates
+  // would take minutes to clear the buffer.
   float* a = &texture_buffer_[write_head_ * size_];
-  float* b = &texture_buffer_[write_head_ * size_];
-  
-  if (feedback >= 0.5f) {
-    feedback = 2.0f * (feedback - 0.5f);
-    if (feedback < 0.5f) {
-      gain_a *= 1.0f - feedback;
-      gain_b *= 1.0f - feedback;
-      for (int32_t i = 0; i < size_; ++i) {
-        float x = *xf_polar++;
-        a[i] = Crossfade(a[i], x, gain_a);
-        b[i] = Crossfade(b[i], x, gain_b);
-      }
-    } else {
-      float t = (feedback - 0.5f) * 0.7f + 0.5f;
-      float gain_new = t - 0.5f;
-      gain_new = gain_new * gain_new * 2.0f + 0.5f;
-      float gain_new_a = gain_a * gain_new;
-      float gain_new_b = gain_b * gain_new;
-      float gain_old_a = 1.0f - gain_a * (1.0f - t);
-      float gain_old_b = 1.0f - gain_b * (1.0f - t);
-      for (int32_t i = 0; i < size_; ++i) {
-        float x = *xf_polar++;
-        a[i] = a[i] * gain_old_a + x * gain_new_a;
-        b[i] = b[i] * gain_old_b + x * gain_new_b;
-      }
-    }
-  } else {
-    feedback *= 2.0f;
-    feedback *= feedback;
-    uint16_t threshold = feedback * 65535.0f;
-    for (int32_t i = 0; i < size_; ++i) {
-      float x = *xf_polar++;
-      float gain = static_cast<uint16_t>(Random::GetSample()) <= threshold
-          ? 1.0f : 0.0f;
-      a[i] = Crossfade(a[i], x, gain_a * gain);
-      b[i] = Crossfade(b[i], x, gain_b * gain);
-    }
-  }
+  copy(xf_polar, xf_polar + size_, a);
   write_head_ = (write_head_ + 1) % num_textures_;
 }
 
@@ -347,10 +310,8 @@ void FrameTransformation::ReplayMagnitudes(float* xf_polar, float position) {
   float index_float = position * float(num_textures_ - 1);
   int32_t offset = static_cast<int32_t>(index_float);
   float index_fractional = index_float - static_cast<float>(offset);
-  int32_t pos_a = write_head_ - offset;
-  if (pos_a < 0) pos_a = num_textures_ + pos_a;
-  int32_t pos_b = write_head_ - (offset + 1);
-  if (pos_b < 0) pos_b = num_textures_ + pos_b;
+  int32_t pos_a = (write_head_ - 1 - offset + 2 * num_textures_) % num_textures_;
+  int32_t pos_b = (write_head_ - 2 - offset + 2 * num_textures_) % num_textures_;
   float* a = &texture_buffer_[pos_a * size_];
   float* b = &texture_buffer_[pos_b * size_];
   for (int32_t i = 0; i < size_; ++i) {
