@@ -84,6 +84,10 @@ void FrameTransformation::Process(
         fft_out,
         parameters.position,
         parameters.spectral.refresh_rate);
+    // Restore phases from the replay position so synthesis uses the phases
+    // of the stored audio, not the current live input. Only when not frozen —
+    // during freeze phases should keep accumulating for natural-sounding sustain.
+    RestorePhases(parameters.position);
   }
   float* temp = &fft_out[0];
   ReplayMagnitudes(ifft_in, parameters.position);
@@ -322,16 +326,20 @@ void FrameTransformation::ReplayMagnitudes(float* xf_polar, float position) {
   for (int32_t i = 0; i < size_; ++i) {
     xf_polar[i] = Crossfade(a[i], b[i], index_fractional);
   }
-  // Restore phases from the stored frames so that synthesis uses the
-  // phases of the replayed audio, not the current live input.
+}
+
+void FrameTransformation::RestorePhases(float position) {
+  float index_float = position * float(num_textures_ - 1);
+  int32_t offset = static_cast<int32_t>(index_float);
+  float index_fractional = index_float - static_cast<float>(offset);
+  int32_t pos_a = (write_head_ - 1 - offset + 2 * num_textures_) % num_textures_;
+  int32_t pos_b = (write_head_ - 2 - offset + 2 * num_textures_) % num_textures_;
   uint16_t* pa = &phase_texture_buffer_[pos_a * size_];
   uint16_t* pb = &phase_texture_buffer_[pos_b * size_];
   for (int32_t i = 0; i < size_; ++i) {
-    // Interpolate phase (uint16_t wrapping handles 0/65535 boundary).
     uint16_t phase_ab = static_cast<uint16_t>(pa[i] - pb[i]);
     phases_[i] = pb[i] + static_cast<uint16_t>(
         static_cast<float>(phase_ab) * (1.0f - index_fractional));
-    // Phase advance rate for synthesis: newer frame minus older frame.
     phases_delta_[i] = phase_ab;
   }
 }

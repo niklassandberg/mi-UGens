@@ -71,6 +71,7 @@ class FrameTransformation {
   void StoreMagnitudes(float* xf_polar, float position, float feedback);
   void SetPhases(float* destination, float diffusion, float pitch_ratio);
   void ReplayMagnitudes(float* xf_polar, float position);
+  void RestorePhases(float position);
   void DiffuseMagnitudes(float* xf_polar, float diffusion);
   
   inline void fast_p2r(float magnitude, uint16_t angle, float* re, float* im) {
