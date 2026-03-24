@@ -208,7 +208,7 @@ void FrameTransformation::QuantizeMagnitudes(float* xf_polar, float amount) {
   if (amount <= 0.48f) {
     amount = amount * 2.0f;
     float scale_down = 0.5f * SemitonesToRatio(
-        -108.0f * (1.0f - amount * amount)) / float(fft_size_);
+        -108.0f * (1.0f - amount * amount));
     float scale_up = 1.0f / scale_down;
     for (int32_t i = 0.0f; i < size_; ++i) {
       xf_polar[i] = scale_up * static_cast<float>(
