@@ -63,8 +63,10 @@ void PhaseVocoder::Init(
         (fft_size + (fft_size >> 1)) * 2);
     // Each texture slot needs texture_size floats for magnitudes plus
     // texture_size/2 float-equivalents for the phase ring (uint16_t, 2 bytes vs 4).
+    // Reserve space for the 7-frame working buffer used by BlendFeedback.
+    size_t working_frames_bytes = 7 * texture_size * sizeof(float);
     num_textures = min(
-        allocator[i]->free() * 2 / (3 * sizeof(float) * texture_size),
+        (allocator[i]->free() - working_frames_bytes) * 2 / (3 * sizeof(float) * texture_size),
         num_textures);
     stft_[i].Init(
         &fft_,
