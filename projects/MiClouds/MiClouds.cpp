@@ -112,7 +112,7 @@ static void MiClouds_Ctor(MiClouds *unit) {
         kFftSize +                              // fft or ifft buffer
         (kFftSize + (kFftSize >> 1)) * 2        // analysis + synthesis buffers
     );
-    const int kNumTextures  = 512;              // ~22s spectral memory at 48kHz (hop=2048, 8192 FFT)
+    const int kNumTextures  = 2816;             // ~2min spectral memory at 48kHz (hop=2048, 8192 FFT)
     const int kTextureSpace = sizeof(float) * kNumTextures *
         (kFftSize / 2 - clouds::kHighFrequencyTruncation);
     // Phase ring: one uint16_t phase snapshot per bin per texture frame.
