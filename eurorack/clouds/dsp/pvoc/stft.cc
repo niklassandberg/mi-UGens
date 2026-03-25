@@ -69,7 +69,7 @@ void STFT::Init(
   ifft_out_ = fft_out_ = ifft_buffer;
   
   window_ = window_lut;
-  window_stride_ = LUT_SINE_WINDOW_4096_SIZE / fft_size;
+  window_stride_ = kMaxFftSize / fft_size;
   modifier_ = modifier;
   
   parameters_ = NULL;

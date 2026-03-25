@@ -29,6 +29,7 @@
 #include "clouds/dsp/granular_processor.h"
 
 #include <cstring>
+#include <cmath>
 
 //#include "clouds/drivers/debug_pin.h"
 
@@ -454,9 +455,17 @@ void GranularProcessor::Prepare() {
     pitch_shifter_.Init((uint16_t*)correlator_data);
     
     if (playback_mode_ == PLAYBACK_MODE_SPECTRAL) {
+      static float window_8192[8192];
+      static bool window_ready = false;
+      if (!window_ready) {
+        for (int i = 0; i < 8192; ++i) {
+          window_8192[i] = sinf(3.14159265358979f * i / 8192.0f);
+        }
+        window_ready = true;
+      }
       phase_vocoder_.Init(
           buffer, buffer_size,
-          lut_sine_window_4096, 4096,
+          window_8192, 8192,
           num_channels_, resolution(), sr);
     } else {
       for (int32_t i = 0; i < num_channels_; ++i) {
