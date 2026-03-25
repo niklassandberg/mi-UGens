@@ -69,6 +69,7 @@ class FrameTransformation {
       float amount);
   void QuantizeMagnitudes(float* xf_polar, float amount);
   void StoreMagnitudes(float* xf_polar, float position, float feedback);
+  void BlendFeedback(float* xf_polar, float position, float feedback, float** textures, int32_t textures_size);
   void SetPhases(float* destination, float diffusion, float pitch_ratio);
   void ReplayMagnitudes(float* xf_polar, float position);
   void RestorePhases(float position);
@@ -94,6 +95,10 @@ class FrameTransformation {
   // Current synthesis phase tracking.
   uint16_t* phases_;
   uint16_t* phases_delta_;
+
+  // 7-frame working buffer for feedback blending.
+  float* fft_working_buffer_;
+  float* fft_working_frames_[7];
 
   int8_t glitch_algorithm_;
   

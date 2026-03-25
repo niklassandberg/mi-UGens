@@ -56,6 +56,12 @@ void FrameTransformation::Init(
   // Phase ring buffer follows immediately after phases_ and phases_delta_.
   phase_texture_buffer_ = phases_delta_ + size_;
 
+  // 7-frame working buffer follows immediately after phase ring buffer.
+  fft_working_buffer_ = reinterpret_cast<float*>(phase_texture_buffer_ + num_textures_ * size_);
+  for (int i = 0; i < 7; ++i) {
+    fft_working_frames_[i] = fft_working_buffer_ + i * size_;
+  }
+
   write_head_ = 0;
   glitch_algorithm_ = 0;
   Reset();
@@ -64,6 +70,7 @@ void FrameTransformation::Init(
 void FrameTransformation::Reset() {
   fill(&texture_buffer_[0], &texture_buffer_[num_textures_ * size_], 0.0f);
   fill(&phase_texture_buffer_[0], &phase_texture_buffer_[num_textures_ * size_], (uint16_t)0);
+  fill(fft_working_buffer_, fft_working_buffer_ + 7 * size_, 0.0f);
   write_head_ = 0;
 }
 
@@ -88,9 +95,23 @@ void FrameTransformation::Process(
     // of the stored audio, not the current live input. Only when not frozen —
     // during freeze phases should keep accumulating for natural-sounding sustain.
     RestorePhases(parameters.position);
+
   }
+
   float* temp = &fft_out[0];
+
   ReplayMagnitudes(ifft_in, parameters.position);
+
+  // Shift working frame pointers (no data copy — just rotate the pointer array).
+  float* oldest = fft_working_frames_[6];
+  for (int i = 6; i > 0; --i) fft_working_frames_[i] = fft_working_frames_[i - 1];
+  fft_working_frames_[0] = oldest;
+  // Copy current live magnitudes into frame 0.
+  copy(ifft_in, ifft_in + size_, fft_working_frames_[0]);
+  // Blend feedback using the 7 working frames, runs in both freeze and non-freeze.
+  BlendFeedback(ifft_in, 0.0f, parameters.spectral.refresh_rate, fft_working_frames_, 7);
+  copy(fft_working_frames_[0], fft_working_frames_[0] + size_, ifft_in);
+
   WarpMagnitudes(ifft_in, temp, parameters.spectral.warp);
   ShiftMagnitudes(temp, ifft_in, pitch_ratio);
   if (glitch) {
@@ -313,6 +334,60 @@ void FrameTransformation::StoreMagnitudes(
   uint16_t* pa = &phase_texture_buffer_[write_head_ * size_];
   copy(phases_delta_, phases_delta_ + size_, pa);
   write_head_ = (write_head_ + 1) % num_textures_;
+}
+
+void FrameTransformation::BlendFeedback(
+    float* xf_polar,
+    float position, //just be between 0 and 1... but we will call it with just 0.
+    float feedback, //between 0 and 1 is guees
+    float** textures,
+    int32_t textures_size) {
+
+  float index_float = position * float(textures_size - 1);
+  int32_t index_int = static_cast<int32_t>(index_float);
+  float index_fractional = index_float - index_int;
+  float gain_a = 1.0f - index_fractional;
+  float gain_b = index_fractional;
+  
+  float* a = textures[index_int];
+  float* b = textures[index_int + (position == 1.0f ? 0 : 1)];
+  
+  if (feedback >= 0.5f) {
+    feedback = 2.0f * (feedback - 0.5f);
+    if (feedback < 0.5f) {
+      gain_a *= 1.0f - feedback;
+      gain_b *= 1.0f - feedback;
+      for (int32_t i = 0; i < size_; ++i) {
+        float x = *xf_polar++;
+        a[i] = Crossfade(a[i], x, gain_a);
+        b[i] = Crossfade(b[i], x, gain_b);
+      }
+    } else {
+      float t = (feedback - 0.5f) * 0.7f + 0.5f;
+      float gain_new = t - 0.5f;
+      gain_new = gain_new * gain_new * 2.0f + 0.5f;
+      float gain_new_a = gain_a * gain_new;
+      float gain_new_b = gain_b * gain_new;
+      float gain_old_a = 1.0f - gain_a * (1.0f - t);
+      float gain_old_b = 1.0f - gain_b * (1.0f - t);
+      for (int32_t i = 0; i < size_; ++i) {
+        float x = *xf_polar++;
+        a[i] = a[i] * gain_old_a + x * gain_new_a;
+        b[i] = b[i] * gain_old_b + x * gain_new_b;
+      }
+    }
+  } else {
+    feedback *= 2.0f;
+    feedback *= feedback;
+    uint16_t threshold = feedback * 65535.0f;
+    for (int32_t i = 0; i < size_; ++i) {
+      float x = *xf_polar++;
+      float gain = static_cast<uint16_t>(Random::GetSample()) <= threshold
+          ? 1.0f : 0.0f;
+      a[i] = Crossfade(a[i], x, gain_a * gain);
+      b[i] = Crossfade(b[i], x, gain_b * gain);
+    }
+  }
 }
 
 void FrameTransformation::ReplayMagnitudes(float* xf_polar, float position) {

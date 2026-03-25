@@ -119,8 +119,11 @@ static void MiClouds_Ctor(MiClouds *unit) {
     // Eliminates current-audio phase bleed when replaying old textures.
     const int kPhaseRingSpace = sizeof(uint16_t) * (kNumTextures - 1) *
         (kFftSize / 2 - clouds::kHighFrequencyTruncation);
+    // 7-frame working buffer for feedback blending in BlendFeedback().
+    const int kWorkingFrames = sizeof(float) * 7 *
+        (kFftSize / 2 - clouds::kHighFrequencyTruncation);
     const int kWorkspace    = 53376;            // diffuser + reverb + correlator
-    int smallBufSize = kFftOverhead + kTextureSpace + kPhaseRingSpace;
+    int smallBufSize = kFftOverhead + kTextureSpace + kPhaseRingSpace + kWorkingFrames;
     int largeBufSize = smallBufSize + kWorkspace;
     
     // alloc mem
