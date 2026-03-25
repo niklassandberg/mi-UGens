@@ -116,8 +116,8 @@ void FrameTransformation::RectangularToPolar(float* fft_data) {
   float* magnitude = &fft_data[0];
   for (int32_t i = 1; i < size_; ++i) {
     uint16_t angle = fast_atan2r(imag[i], real[i], &magnitude[i]);
-    phases_delta_[i] = angle - phases_[i];
-    phases_[i] = angle;
+    phases_delta_[i] = angle;  // temporarily hold live angle for StoreMagnitudes
+    // phases_[i] is the synthesis accumulator — not reset from live input
   }
 }
 
@@ -308,10 +308,10 @@ void FrameTransformation::StoreMagnitudes(
     float feedback) {
   float* a = &texture_buffer_[write_head_ * size_];
   copy(xf_polar, xf_polar + size_, a);
-  // Store the current analysis phases alongside the magnitudes so that
-  // ReplayMagnitudes can restore them, eliminating current-audio phase bleed.
+  // Store live input angles (held in phases_delta_ after RectangularToPolar)
+  // so RestorePhases can derive instantaneous frequency at any replay position.
   uint16_t* pa = &phase_texture_buffer_[write_head_ * size_];
-  copy(phases_, phases_ + size_, pa);
+  copy(phases_delta_, phases_delta_ + size_, pa);
   write_head_ = (write_head_ + 1) % num_textures_;
 }
 
