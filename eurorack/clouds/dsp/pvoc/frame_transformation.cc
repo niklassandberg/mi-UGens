@@ -355,8 +355,8 @@ void FrameTransformation::BlendFeedback(
   if (feedback >= 0.5f) {
     feedback = 2.0f * (feedback - 0.5f);
     if (feedback < 0.5f) {
-      gain_a *= 1.0f - feedback;
-      gain_b *= 1.0f - feedback;
+      gain_a *= feedback;
+      gain_b *= feedback;
       for (int32_t i = 0; i < size_; ++i) {
         float x = *xf_polar++;
         a[i] = Crossfade(a[i], x, gain_a);
