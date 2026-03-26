@@ -377,9 +377,9 @@ void FrameTransformation::BlendFeedback(
       }
     }
   } else {
-    feedback *= 2.0f;
-    feedback *= feedback;
-    uint16_t threshold = feedback * 65535.0f;
+    float inv = (0.5f - feedback) * 2.0f;
+    inv *= inv;
+    uint16_t threshold = inv * 65535.0f;
     for (int32_t i = 0; i < size_; ++i) {
       float x = *xf_polar++;
       float gain = static_cast<uint16_t>(Random::GetSample()) <= threshold
