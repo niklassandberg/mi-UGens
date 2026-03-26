@@ -352,10 +352,8 @@ void FrameTransformation::BlendFeedback(
   float* a = textures[index_int];
   float* b = textures[index_int + (position == 1.0f ? 0 : 1)];
   
-  float inv = (0.5f - feedback);
-
   if (feedback >= 0.5f) {
-    inv = 2.0f * (inv - 0.5f);
+    float inv = 2.0f * ((0.5f - feedback) - 0.5f);
     if (inv < 0.5f) {
       gain_a *= inv;
       gain_b *= inv;
@@ -379,7 +377,7 @@ void FrameTransformation::BlendFeedback(
       }
     }
   } else {
-    float inv = inv * 2.0f;
+    float inv = (0.5f - feedback) * 2.0f;
     inv *= inv;
     uint16_t threshold = inv * 65535.0f;
     for (int32_t i = 0; i < size_; ++i) {
