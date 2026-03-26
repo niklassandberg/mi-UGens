@@ -352,18 +352,20 @@ void FrameTransformation::BlendFeedback(
   float* a = textures[index_int];
   float* b = textures[index_int + (position == 1.0f ? 0 : 1)];
   
+  float inv = (0.5f - feedback);
+
   if (feedback >= 0.5f) {
-    feedback = 2.0f * (feedback - 0.5f);
-    if (feedback < 0.5f) {
-      gain_a *= feedback;
-      gain_b *= feedback;
+    inv = 2.0f * (inv - 0.5f);
+    if (inv < 0.5f) {
+      gain_a *= inv;
+      gain_b *= inv;
       for (int32_t i = 0; i < size_; ++i) {
         float x = *xf_polar++;
         a[i] = Crossfade(a[i], x, gain_a);
         b[i] = Crossfade(b[i], x, gain_b);
       }
     } else {
-      float t = (feedback - 0.5f) * 0.7f + 0.5f;
+      float t = (inv - 0.5f) * 0.7f + 0.5f;
       float gain_new = t - 0.5f;
       gain_new = gain_new * gain_new * 2.0f + 0.5f;
       float gain_new_a = gain_a * gain_new;
@@ -377,7 +379,7 @@ void FrameTransformation::BlendFeedback(
       }
     }
   } else {
-    float inv = (0.5f - feedback) * 2.0f;
+    float inv = inv * 2.0f;
     inv *= inv;
     uint16_t threshold = inv * 65535.0f;
     for (int32_t i = 0; i < size_; ++i) {
