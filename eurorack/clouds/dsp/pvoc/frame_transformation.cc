@@ -87,7 +87,7 @@ void FrameTransformation::Process(
   
   if (!freeze) {
     RectangularToPolar(fft_out);
-    BlendFeedback(fft_out, 0.0f, 0.5f, fft_working_frames_, 0);
+    //BlendFeedback(fft_out, 0.0f, 0.5f, fft_working_frames_, 0);
     StoreMagnitudes(
         fft_out,
         parameters.position,
@@ -114,6 +114,7 @@ void FrameTransformation::Process(
   BlendFeedback(fft_working_frames_[1], 0.0f, parameters.spectral.refresh_rate, fft_working_frames_, 7);
   copy(fft_working_frames_[0], fft_working_frames_[0] + size_, ifft_in);
 */
+  BlendFeedback(ifft_in, 0.0f, parameters.spectral.refresh_rate, fft_working_frames_, 7);
 
   WarpMagnitudes(ifft_in, temp, parameters.spectral.warp);
   ShiftMagnitudes(temp, ifft_in, pitch_ratio);
