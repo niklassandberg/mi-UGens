@@ -114,8 +114,7 @@ void FrameTransformation::Process(
   copy(fft_working_frames_[0], fft_working_frames_[0] + size_, ifft_in);
 */
 
-  copy(ifft_in, ifft_in + size_, fft_working_frames_[0]);
-  BlendFeedback(ifft_in, 1.0f, parameters.spectral.refresh_rate, fft_working_frames_, 7);
+  BlendFeedback(ifft_in, 0.0f, parameters.spectral.refresh_rate, fft_working_frames_, 7);
   copy(fft_working_frames_[0], fft_working_frames_[0] + size_, ifft_in);
 
   float* temp = &ifft_in[0];
