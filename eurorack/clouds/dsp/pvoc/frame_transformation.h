@@ -89,12 +89,12 @@ class FrameTransformation {
   // Magnitude buffers.
   float* texture_buffer_;
 
-  // Per-frame stored phase ring buffer (num_textures_ * size_ uint16_t).
-  uint16_t* phase_texture_buffer_;
+  // Per-frame stored phase ring buffer (num_textures_ * size_ floats).
+  float* phase_texture_buffer_;
 
   // Current synthesis phase tracking.
-  uint16_t* phases_;
-  uint16_t* phases_delta_;
+  float* phases_;
+  float* phases_delta_;
 
   // 7-frame working buffer for feedback blending.
   float* fft_working_buffer_;
