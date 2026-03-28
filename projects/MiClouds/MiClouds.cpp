@@ -233,7 +233,7 @@ void MiClouds_next( MiClouds *unit, int inNumSamples )
 
     
     
-    CONSTRAIN(pitch, -48.0f, 48.0f);
+    CONSTRAIN(pitch, 0.0f, 4.0f);
     smoothed_value[PARAM_PITCH] += coef * (pitch - smoothed_value[PARAM_PITCH]);
     p->pitch = smoothed_value[PARAM_PITCH];
     

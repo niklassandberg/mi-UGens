@@ -113,8 +113,11 @@ void FrameTransformation::RectangularToPolar(float* fft_data) {
   float* magnitude = &fft_data[0];
   for (int32_t i = 1; i < size_; ++i) {
     uint16_t angle = fast_atan2r(imag[i], real[i], &magnitude[i]);
-    phases_delta_[i] = angle;  // temporarily hold live angle for StoreMagnitudes
-    // phases_[i] is the synthesis accumulator — not reset from live input
+    float delta = angle - phases_[i];
+    if (delta > 32768.0f) delta -= 65536.0f;
+    else if (delta < -32768.0f) delta += 65536.0f;
+    phases_delta_[i] = delta;
+    phases_[i] = angle;
   }
 }
 
