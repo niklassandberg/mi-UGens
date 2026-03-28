@@ -56,12 +56,6 @@ void FrameTransformation::Init(
   // Phase ring buffer follows immediately after phases_ and phases_delta_.
   phase_texture_buffer_ = phases_delta_ + size_;
 
-  // 7-frame working buffer follows immediately after phase ring buffer.
-  fft_working_buffer_ = phase_texture_buffer_ + num_textures_ * size_;
-  for (int i = 0; i < 7; ++i) {
-    fft_working_frames_[i] = fft_working_buffer_ + i * size_;
-  }
-
   write_head_ = 0;
   glitch_algorithm_ = 0;
   Reset();
@@ -70,7 +64,6 @@ void FrameTransformation::Init(
 void FrameTransformation::Reset() {
   fill(&texture_buffer_[0], &texture_buffer_[num_textures_ * size_], 0.0f);
   fill(&phase_texture_buffer_[0], &phase_texture_buffer_[num_textures_ * size_], 0.0f);
-  fill(fft_working_buffer_, fft_working_buffer_ + 7 * size_, 0.0f);
   write_head_ = 0;
 }
 
@@ -83,50 +76,25 @@ void FrameTransformation::Process(
 
   bool freeze = parameters.freeze;
   bool glitch = parameters.gate;
-  float pitch_ratio = SemitonesToRatio(parameters.pitch);
   
   if (!freeze) {
     RectangularToPolar(fft_out);
-    //BlendFeedback(fft_out, 0.0f, 0.5f, fft_working_frames_, 0);
-    StoreMagnitudes(
-        fft_out,
-        parameters.position,
-        parameters.spectral.refresh_rate);
-    // Restore phases from the replay position so synthesis uses the phases
-    // of the stored audio, not the current live input. Only when not frozen —
-    // during freeze phases should keep accumulating for natural-sounding sustain.
-    RestorePhases(parameters.position);
-
+    StoreMagnitudes(fft_out);
   }
 
+  ReplayMagnitudes(fft_out, parameters.position);
+  BlendFeedback(fft_out, parameters.spectral.refresh_rate, ifft_in);
 
-  ReplayMagnitudes(ifft_in, parameters.position);
-
-/*
-  // Shift working frame pointers (no data copy — just rotate the pointer array).
-  float* oldest = fft_working_frames_[6];
-  for (int i = 6; i > 0; --i) fft_working_frames_[i] = fft_working_frames_[i - 1];
-  fft_working_frames_[0] = oldest;
-  // Copy current live magnitudes into frame 0.
-  copy(ifft_in, ifft_in + size_, fft_working_frames_[0]);
-  // Blend feedback using the 7 working frames, runs in both freeze and non-freeze.
-  BlendFeedback(fft_working_frames_[1], 0.0f, parameters.spectral.refresh_rate, fft_working_frames_, 7);
-  copy(fft_working_frames_[0], fft_working_frames_[0] + size_, ifft_in);
-*/
-
-  BlendFeedback(ifft_in, 0.0f, parameters.spectral.refresh_rate, fft_working_frames_, 7);
-  copy(fft_working_frames_[0], fft_working_frames_[0] + size_, ifft_in);
-
-  float* temp = &ifft_in[0];
+  float* temp = &fft_out[0];
 
 
   WarpMagnitudes(ifft_in, temp, parameters.spectral.warp);
-  ShiftMagnitudes(temp, ifft_in, pitch_ratio);
+  ShiftMagnitudes(temp, ifft_in, parameters.pitch);
   if (glitch) {
     AddGlitch(ifft_in);
   }
   QuantizeMagnitudes(ifft_in, parameters.spectral.quantization);
-  SetPhases(ifft_in, parameters.spectral.phase_randomization, pitch_ratio);
+  SetPhases(ifft_in, parameters.spectral.phase_randomization, parameters.pitch);
   PolarToRectangular(ifft_in);
 
   if (!glitch) {
@@ -332,10 +300,7 @@ void FrameTransformation::ShiftMagnitudes(
   copy(&temp[0], &temp[size_], &destination[0]);
 }
 
-void FrameTransformation::StoreMagnitudes(
-    float* xf_polar,
-    float position,
-    float feedback) {
+void FrameTransformation::StoreMagnitudes(float* xf_polar) {
   float* a = &texture_buffer_[write_head_ * size_];
   copy(xf_polar, xf_polar + size_, a);
   // Store live input angles (held in phases_delta_ after RectangularToPolar)
@@ -347,42 +312,25 @@ void FrameTransformation::StoreMagnitudes(
 
 void FrameTransformation::BlendFeedback(
     float* xf_polar,
-    float position, //just be between 0 and 1... but we will call it with just 0.
-    float feedback, //between 0 and 1 is guees
-    float** textures,
-    int32_t textures_size) {
+    float feedback,
+    float* a) {
 
-  float index_float = position * float(textures_size - 1);
-  int32_t index_int = static_cast<int32_t>(index_float);
-  float index_fractional = index_float - index_int;
-  float gain_a = 1.0f - index_fractional;
-  float gain_b = index_fractional;
-  
-  float* a = textures[index_int];
-  float* b = textures[index_int + (position == 1.0f ? 0 : 1)];
-  
   if (feedback >= 0.5f) {
     feedback = 2.0f * (feedback - 0.5f);
     if (feedback < 0.5f) {
-      gain_a *= 1.0f - feedback;
-      gain_b *= 1.0f - feedback;
+      float gain = 1.0f - feedback;
       for (int32_t i = 0; i < size_; ++i) {
         float x = *xf_polar++;
-        a[i] = Crossfade(a[i], x, gain_a);
-        b[i] = Crossfade(b[i], x, gain_b);
+        a[i] = Crossfade(a[i], x, gain);
       }
     } else {
       float t = (feedback - 0.5f) * 0.7f + 0.5f;
       float gain_new = t - 0.5f;
       gain_new = gain_new * gain_new * 2.0f + 0.5f;
-      float gain_new_a = gain_a * gain_new;
-      float gain_new_b = gain_b * gain_new;
-      float gain_old_a = 1.0f - gain_a * (1.0f - t);
-      float gain_old_b = 1.0f - gain_b * (1.0f - t);
+      float gain_old = 1.0f - (1.0f - t);
       for (int32_t i = 0; i < size_; ++i) {
         float x = *xf_polar++;
-        a[i] = a[i] * gain_old_a + x * gain_new_a;
-        b[i] = b[i] * gain_old_b + x * gain_new_b;
+        a[i] = a[i] * gain_old + x * gain_new;
       }
     }
   } else {
@@ -393,8 +341,7 @@ void FrameTransformation::BlendFeedback(
       float x = *xf_polar++;
       float gain = static_cast<uint16_t>(Random::GetSample()) <= threshold
           ? 1.0f : 0.0f;
-      a[i] = Crossfade(a[i], x, gain_a * gain);
-      b[i] = Crossfade(b[i], x, gain_b * gain);
+      a[i] = Crossfade(a[i], x, gain);
     }
   }
 }
@@ -409,25 +356,6 @@ void FrameTransformation::ReplayMagnitudes(float* xf_polar, float position) {
   float* b = &texture_buffer_[pos_b * size_];
   for (int32_t i = 0; i < size_; ++i) {
     xf_polar[i] = Crossfade(a[i], b[i], index_fractional);
-  }
-}
-
-void FrameTransformation::RestorePhases(float position) {
-  float index_float = position * float(num_textures_ - 1);
-  int32_t offset = static_cast<int32_t>(index_float);
-  float index_fractional = index_float - static_cast<float>(offset);
-  int32_t pos_a = (write_head_ - 1 - offset + 2 * num_textures_) % num_textures_;
-  int32_t pos_b = (write_head_ - 2 - offset + 2 * num_textures_) % num_textures_;
-  float* pa = &phase_texture_buffer_[pos_a * size_];
-  float* pb = &phase_texture_buffer_[pos_b * size_];
-  for (int32_t i = 0; i < size_; ++i) {
-    // Only update the phase advance rate from the stored frames.
-    // Resetting phases_[] to the same stored value every hop causes a
-    // static/robotic sound — let it accumulate freely instead.
-    float delta = pa[i] - pb[i];
-    if (delta < -32768.0f) delta += 65536.0f;
-    else if (delta > 32768.0f) delta -= 65536.0f;
-    phases_delta_[i] = delta;
   }
 }
 
