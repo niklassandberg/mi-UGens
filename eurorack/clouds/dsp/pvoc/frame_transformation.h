@@ -84,6 +84,7 @@ class FrameTransformation {
   int32_t num_textures_;
   int32_t size_;
   int32_t write_head_;
+  float   read_phasor_;
   
   // Magnitude buffers.
   float* texture_buffer_;

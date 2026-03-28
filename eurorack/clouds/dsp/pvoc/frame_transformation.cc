@@ -65,6 +65,7 @@ void FrameTransformation::Reset() {
   fill(&texture_buffer_[0], &texture_buffer_[num_textures_ * size_], 0.0f);
   fill(&phase_texture_buffer_[0], &phase_texture_buffer_[num_textures_ * size_], 0.0f);
   write_head_ = 0;
+  read_phasor_ = 0.0f;
 }
 
 void FrameTransformation::Process(
@@ -74,15 +75,25 @@ void FrameTransformation::Process(
   fft_out[0] = 0.0f;
   fft_out[fft_size_ >> 1] = 0.0f;
 
+  bool record = parameters.spectral.record;
   bool freeze = parameters.freeze;
   bool glitch = parameters.gate;
   
-  if (!freeze) {
+  if (!freeze && record) {
     RectangularToPolar(fft_out);
     StoreMagnitudes(fft_out);
   }
 
-  ReplayMagnitudes(fft_out, parameters.position);
+  
+  read_phasor_ += parameters.spectral.speed / float(num_textures_);
+  if (read_phasor_ >= parameters.spectral.size) read_phasor_ -= parameters.spectral.size;
+  else if (read_phasor_ < 0.0f) read_phasor_ += 1.0f;
+
+  float tempPos = parameters.position + read_phasor_;
+  if (tempPos >= 1.0f) tempPos -= 1.0f;
+  else if (tempPos < 0.0f) tempPos += 1.0f;
+
+  ReplayMagnitudes(fft_out, tempPos);
   float* feedback_buf = phase_texture_buffer_ + size_;
   BlendFeedback(fft_out, parameters.spectral.refresh_rate, feedback_buf);
   copy(feedback_buf, feedback_buf + size_, ifft_in);

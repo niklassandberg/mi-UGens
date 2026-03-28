@@ -41,7 +41,7 @@ static InterfaceTable *ft;
 
 
 const uint16 kAudioBlockSize = 32;        // sig vs can't be smaller than this!
-const uint16 kNumArgs = 14;
+const uint16 kNumArgs = 17;
 
 
 enum ModParams {
@@ -157,6 +157,9 @@ static void MiClouds_Ctor(MiClouds *unit) {
     
     unit->pot_value_[PARAM_DRYWET] = unit->smoothed_value_[PARAM_DRYWET] = 1.f;
     unit->processor->mutable_parameters()->stereo_spread = 0.5f;
+    unit->processor->mutable_parameters()->spectral.record = false;
+    unit->processor->mutable_parameters()->spectral.speed  = 1.0f;
+    unit->processor->mutable_parameters()->spectral.size   = 1.0f;
     unit->processor->mutable_parameters()->reverb = 0.f;
     unit->processor->mutable_parameters()->feedback = 0.f;
     unit->processor->mutable_parameters()->freeze = false;
@@ -207,6 +210,9 @@ void MiClouds_next( MiClouds *unit, int inNumSamples )
     short   mode = IN0(11);
     bool    lofi = IN0(12) > 0.f;
     float   *trig_in = IN(13);
+    bool    record = IN0(14) > 0.f;
+    float   speed  = IN0(15);
+    float   size_s = IN0(16);
 
     
     float   *outL = OUT(0);
@@ -261,6 +267,11 @@ void MiClouds_next( MiClouds *unit, int inNumSamples )
     p->stereo_spread = spread;
     p->reverb = reverb;
     p->feedback = fb;
+    CONSTRAIN(speed, -4.f, 4.f);
+    CONSTRAIN(size_s, 0.f, 1.f);
+    p->spectral.record = record;
+    p->spectral.speed  = speed;
+    p->spectral.size   = size_s;
     gp->set_low_fidelity(lofi);
     gp->set_freeze(freeze);
     gp->set_playback_mode(static_cast<clouds::PlaybackMode>(mode));
