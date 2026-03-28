@@ -37,6 +37,7 @@
 #include "stmlib/utils/buffer_allocator.h"
 
 #include "clouds/resources.h"
+#include "clouds/dsp/pvoc/stft.h"
 
 namespace clouds {
 
@@ -455,17 +456,17 @@ void GranularProcessor::Prepare() {
     pitch_shifter_.Init((uint16_t*)correlator_data);
     
     if (playback_mode_ == PLAYBACK_MODE_SPECTRAL) {
-      static float window_8192[8192];
+      static float window[kMaxFftSize];
       static bool window_ready = false;
       if (!window_ready) {
-        for (int i = 0; i < 8192; ++i) {
-          window_8192[i] = sinf(3.14159265358979f * i / 8192.0f);
+        for (size_t i = 0; i < kMaxFftSize; ++i) {
+          window[i] = sinf(3.14159265358979f * i / kMaxFftSize);
         }
         window_ready = true;
       }
       phase_vocoder_.Init(
           buffer, buffer_size,
-          window_8192, 8192,
+          window, kMaxFftSize,
           num_channels_, resolution(), sr);
     } else {
       for (int32_t i = 0; i < num_channels_; ++i) {
