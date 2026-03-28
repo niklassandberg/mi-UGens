@@ -66,6 +66,7 @@ void FrameTransformation::Reset() {
   fill(&phase_texture_buffer_[0], &phase_texture_buffer_[num_textures_ * size_], 0.0f);
   write_head_ = 0;
   phasor_index_ = 0;
+  phasor_fractional_ = 0.0f;
 }
 
 void FrameTransformation::Process(
@@ -352,22 +353,26 @@ void FrameTransformation::BlendFeedback(
 void FrameTransformation::ReplayMagnitudes(float* xf_polar, float position, float speed) {
   int32_t speed_index = static_cast<int32_t>(speed);
   phasor_index_ += speed_index;
+  
+  phasor_fractional_ +=  speed - float(speed_index);
+  if (phasor_fractional_ >= 1.0f) {
+    phasor_fractional_ -= 1.0f;
+    phasor_index_ += 1;
+  } 
+  else if (phasor_fractional_ < 0.0f) {
+      phasor_fractional_ += 1.0f;
+      phasor_index_ -= 1;
+  }
   if(phasor_index_ >= num_textures_) phasor_index_ -= num_textures_;
   else if (phasor_index_ < 0) phasor_index_ += num_textures_;
-  
-  float speed_offset =  speed - float(speed_index);
 
   float position_hole = position * float(num_textures_ - 1);
   int32_t position_index = static_cast<int32_t>(position_hole);
   float position_fractional = position_hole - float(position_index);
   
-  float index_fractional = position_fractional + speed_offset;
+  float index_fractional = position_fractional + phasor_fractional_;
   int32_t index_overflow = static_cast<int32_t>(index_fractional);
   index_fractional -= float(index_overflow);
-  if(index_fractional < 0.0f) {
-    index_fractional += 1.0f;
-    index_overflow -= 1;
-  }
 
   int32_t offset = position_index + phasor_index_ + index_overflow;
 
