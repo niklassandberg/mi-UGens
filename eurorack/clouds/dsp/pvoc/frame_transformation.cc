@@ -79,8 +79,7 @@ void FrameTransformation::Process(
   bool freeze = parameters.freeze;
   bool glitch = parameters.gate;
   
-  //if (!freeze && record) {
-  if (!freeze) {
+  if (!freeze && record) {
     RectangularToPolar(fft_out);
     StoreMagnitudes(fft_out);
   }
