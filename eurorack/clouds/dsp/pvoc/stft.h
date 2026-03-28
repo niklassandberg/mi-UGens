@@ -43,7 +43,7 @@ namespace clouds {
 
 struct Parameters;
 
-const size_t kMaxFftSize = 8192;
+const size_t kMaxFftSize = 4096;
 #ifdef USE_ARM_FFT
   typedef arm_rfft_fast_instance_f32 FFT;
 #else
