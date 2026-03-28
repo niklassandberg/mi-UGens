@@ -351,19 +351,12 @@ void FrameTransformation::BlendFeedback(
 }
 
 void FrameTransformation::ReplayMagnitudes(float* xf_polar, float position, float speed) {
-  int32_t speed_index = static_cast<int32_t>(speed);
-  phasor_index_ += speed_index;
-  
-  phasor_fractional_ +=  speed - float(speed_index);
-  if (phasor_fractional_ >= 1.0f) {
-    phasor_fractional_ -= 1.0f;
-    phasor_index_ += 1;
-  } 
-  else if (phasor_fractional_ < 0.0f) {
-      phasor_fractional_ += 1.0f;
-      phasor_index_ -= 1;
-  }
-  if(phasor_index_ >= num_textures_) phasor_index_ -= num_textures_;
+  phasor_fractional_ += speed;
+  int32_t carry = static_cast<int32_t>(phasor_fractional_);
+  phasor_fractional_ -= float(carry);
+  if (phasor_fractional_ < 0.0f) { phasor_fractional_ += 1.0f; carry--; }
+  phasor_index_ += carry;
+  if (phasor_index_ >= num_textures_) phasor_index_ -= num_textures_;
   else if (phasor_index_ < 0) phasor_index_ += num_textures_;
 
   float position_hole = position * float(num_textures_ - 1);
