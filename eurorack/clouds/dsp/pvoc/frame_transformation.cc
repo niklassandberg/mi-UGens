@@ -86,7 +86,9 @@ void FrameTransformation::Process(
 
   
   read_phasor_ += parameters.spectral.speed / float(num_textures_);
-  if (read_phasor_ >= parameters.spectral.size) read_phasor_ -= parameters.spectral.size;
+  if( parameters.spectral.size <=  0.01f ) {
+    read_phasor_ = 0.f;
+  } else if ( read_phasor_ >= parameters.spectral.size) read_phasor_ -= parameters.spectral.size;
   else if (read_phasor_ < 0.0f) read_phasor_ += 1.0f;
 
   float tempPos = parameters.position + read_phasor_;
