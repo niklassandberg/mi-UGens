@@ -65,7 +65,7 @@ void FrameTransformation::Reset() {
   fill(&texture_buffer_[0], &texture_buffer_[num_textures_ * size_], 0.0f);
   fill(&phase_texture_buffer_[0], &phase_texture_buffer_[num_textures_ * size_], 0.0f);
   write_head_ = 0;
-  read_phasor_ = 0.0f;
+  phasor_index_ = 0;
 }
 
 void FrameTransformation::Process(
@@ -84,18 +84,7 @@ void FrameTransformation::Process(
     StoreMagnitudes(fft_out);
   }
 
-  
-  read_phasor_ += parameters.spectral.speed / float(num_textures_);
-  if( parameters.spectral.size <=  0.01f ) {
-    read_phasor_ = 0.f;
-  } else if ( read_phasor_ >= parameters.spectral.size) read_phasor_ -= parameters.spectral.size;
-  else if (read_phasor_ < 0.0f) read_phasor_ += 1.0f;
-
-  float tempPos = parameters.position + read_phasor_;
-  if (tempPos >= 1.0f) tempPos -= 1.0f;
-  else if (tempPos < 0.0f) tempPos += 1.0f;
-
-  ReplayMagnitudes(fft_out, tempPos);
+  ReplayMagnitudes(fft_out, parameters.position, (!freeze) * parameters.spectral.speed);
   float* feedback_buf = phase_texture_buffer_ + size_;
   BlendFeedback(fft_out, parameters.spectral.refresh_rate, feedback_buf);
   copy(feedback_buf, feedback_buf + size_, ifft_in);
@@ -360,10 +349,28 @@ void FrameTransformation::BlendFeedback(
   }
 }
 
-void FrameTransformation::ReplayMagnitudes(float* xf_polar, float position) {
-  float index_float = position * float(num_textures_ - 1);
-  int32_t offset = static_cast<int32_t>(index_float);
-  float index_fractional = index_float - static_cast<float>(offset);
+void FrameTransformation::ReplayMagnitudes(float* xf_polar, float position, float speed) {
+  int32_t speed_index = static_cast<int32_t>(speed);
+  phasor_index_ += speed_index;
+  if(phasor_index_ >= num_textures_) phasor_index_ -= num_textures_;
+  else if (phasor_index_ < 0) phasor_index_ += num_textures_;
+  
+  float speed_offset =  speed - float(speed_index);
+
+  float position_hole = position * float(num_textures_ - 1);
+  int32_t position_index = static_cast<int32_t>(position_hole);
+  float position_fractional = position_hole - float(position_index);
+  
+  float index_fractional = position_fractional + speed_offset;
+  int32_t index_overflow = static_cast<int32_t>(index_fractional);
+  index_fractional -= float(index_overflow);
+  if(index_fractional < 0.0f) {
+    index_fractional += 1.0f;
+    index_overflow -= 1;
+  }
+
+  int32_t offset = position_index + phasor_index_ + index_overflow;
+
   int32_t pos_a = (write_head_ - 1 - offset + 2 * num_textures_) % num_textures_;
   int32_t pos_b = (write_head_ - 2 - offset + 2 * num_textures_) % num_textures_;
   float* a = &texture_buffer_[pos_a * size_];

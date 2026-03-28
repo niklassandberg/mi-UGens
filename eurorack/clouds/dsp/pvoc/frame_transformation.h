@@ -71,7 +71,7 @@ class FrameTransformation {
   void StoreMagnitudes(float* xf_polar);
   void BlendFeedback(float* xf_polar, float feedback, float* a);
   void SetPhases(float* destination, float diffusion, float pitch_ratio);
-  void ReplayMagnitudes(float* xf_polar, float position);
+  void ReplayMagnitudes(float* xf_polar, float position, float speed);
   void DiffuseMagnitudes(float* xf_polar, float diffusion);
   
   inline void fast_p2r(float magnitude, uint16_t angle, float* re, float* im) {
@@ -84,7 +84,7 @@ class FrameTransformation {
   int32_t num_textures_;
   int32_t size_;
   int32_t write_head_;
-  float   read_phasor_;
+  int32_t phasor_index_;
   
   // Magnitude buffers.
   float* texture_buffer_;
