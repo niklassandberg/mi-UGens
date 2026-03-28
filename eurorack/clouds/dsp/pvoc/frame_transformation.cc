@@ -83,7 +83,9 @@ void FrameTransformation::Process(
   }
 
   ReplayMagnitudes(fft_out, parameters.position);
-  BlendFeedback(fft_out, parameters.spectral.refresh_rate, ifft_in);
+  float* feedback_buf = phase_texture_buffer_ + size_;
+  BlendFeedback(fft_out, parameters.spectral.refresh_rate, feedback_buf);
+  copy(feedback_buf, feedback_buf + size_, ifft_in);
 
   float* temp = &fft_out[0];
 
