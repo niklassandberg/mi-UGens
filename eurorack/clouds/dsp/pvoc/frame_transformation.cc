@@ -73,6 +73,8 @@ void FrameTransformation::Reset() {
   rec_len_ = 0;
   play_len_ = 0;
   prev_record_ = false;
+  prev_record_reset_ = false;
+  idle_ = false;
 }
 
 void FrameTransformation::Process(
@@ -83,22 +85,43 @@ void FrameTransformation::Process(
   fft_out[fft_size_ >> 1] = 0.0f;
 
   bool record = parameters.spectral.record;
+  bool record_reset = parameters.spectral.record_reset;
   bool freeze = parameters.freeze;
   bool glitch = parameters.gate;
 
-  // On any record edge (low→high or high→low): swap rec/play buffers.
-  if (record != prev_record_ && record) {
-    swap(rec_buf_, play_buf_);
-    play_len_ = rec_len_;
+  // Rising edge of record_reset: clear rec buffer and go idle.
+  // play_buf_ keeps playing unaffected.
+  if (record_reset && !prev_record_reset_) {
     rec_len_ = 0;
     write_head_ = 0;
-    phasor_index_ = 0;
-    phasor_fractional_ = 0.0f;
+    idle_ = true;
+    prev_record_ = record;
   }
-  prev_record_ = record;
+  prev_record_reset_ = record_reset;
 
-  RectangularToPolar(fft_out);
-  StoreMagnitudes(fft_out);
+  if (!idle_) {
+    // Normal swap on rising edge of record.
+    if (record && !prev_record_) {
+      swap(rec_buf_, play_buf_);
+      play_len_ = rec_len_;
+      rec_len_ = 0;
+      write_head_ = 0;
+      phasor_index_ = 0;
+      phasor_fractional_ = 0.0f;
+    }
+    prev_record_ = record;
+  } else {
+    // Idle: exit on rising edge of record, start fresh without swap.
+    if (record && !prev_record_) {
+      idle_ = false;
+    }
+    prev_record_ = record;
+  }
+
+  if (record && !idle_) {
+    RectangularToPolar(fft_out);
+    StoreMagnitudes(fft_out);
+  }
   ReplayMagnitudes(fft_out, parameters.position,
                    (!freeze) * parameters.spectral.speed,
                    parameters.spectral.size);

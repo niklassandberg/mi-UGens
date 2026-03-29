@@ -61,6 +61,7 @@ struct Parameters {
     float phase_randomization;
     float warp;
     bool  record;
+    bool  record_reset;
     float speed;
     float size;
   } spectral;

@@ -94,6 +94,8 @@ class FrameTransformation {
   int32_t rec_len_;
   int32_t play_len_;
   bool prev_record_;
+  bool prev_record_reset_;
+  bool idle_;
 
   // Live input angle tracking (size_ floats) + feedback blend buffer (size_ floats).
   float* phase_texture_buffer_;
