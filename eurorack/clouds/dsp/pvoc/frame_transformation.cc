@@ -87,7 +87,7 @@ void FrameTransformation::Process(
   bool glitch = parameters.gate;
 
   // On any record edge (low→high or high→low): swap rec/play buffers.
-  if (record != prev_record_) {
+  if (record != prev_record_ && record) {
     prev_record_ = record;
     swap(rec_buf_, play_buf_);
     play_len_ = rec_len_;
@@ -96,12 +96,8 @@ void FrameTransformation::Process(
     phasor_index_ = 0;
     phasor_fractional_ = 0.0f;
   }
-
-  if (!freeze && record) {
-    RectangularToPolar(fft_out);
-    StoreMagnitudes(fft_out, parameters.dry_wet);
-  }
-
+  RectangularToPolar(fft_out);
+  StoreMagnitudes(fft_out, parameters.dry_wet);
   ReplayMagnitudes(fft_out, parameters.position,
                    (!freeze) * parameters.spectral.speed,
                    parameters.spectral.size);
