@@ -101,7 +101,7 @@ void FrameTransformation::Process(
 
   if (!idle_) {
     // Normal swap on rising edge of record.
-    if (record && !prev_record_ && record) {
+    if (record && !prev_record_) {
       swap(rec_buf_, play_buf_);
       play_len_ = rec_len_;
       rec_len_ = 0;
@@ -109,14 +109,13 @@ void FrameTransformation::Process(
       phasor_index_ = 0;
       phasor_fractional_ = 0.0f;
     }
-    prev_record_ = record;
   } else {
     // Idle: exit on rising edge of record, start fresh without swap.
-    if (record && !prev_record_ && record) {
+    if (record && !prev_record_) {
       idle_ = false;
     }
-    prev_record_ = record;
   }
+  prev_record_ = record;
 
   if (!idle_) {
     RectangularToPolar(fft_out);
