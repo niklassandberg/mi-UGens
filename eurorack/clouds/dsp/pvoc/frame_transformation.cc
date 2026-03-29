@@ -98,7 +98,7 @@ void FrameTransformation::Process(
   prev_record_ = record;
 
   RectangularToPolar(fft_out);
-  StoreMagnitudes(fft_out, parameters.dry_wet);
+  StoreMagnitudes(fft_out);
   ReplayMagnitudes(fft_out, parameters.position,
                    (!freeze) * parameters.spectral.speed,
                    parameters.spectral.size);
@@ -324,17 +324,9 @@ void FrameTransformation::ShiftMagnitudes(
   copy(&temp[0], &temp[size_], &destination[0]);
 }
 
-void FrameTransformation::StoreMagnitudes(float* xf_polar, float drywet) {
+void FrameTransformation::StoreMagnitudes(float* xf_polar) {
   float* rec = rec_buf_ + write_head_ * size_;
-  if (play_len_ > 0) {
-    // Blend live magnitudes with corresponding frame from play buffer.
-    float* play = play_buf_ + (write_head_ % play_len_) * size_;
-    for (int32_t i = 0; i < size_; ++i) {
-      rec[i] = Crossfade(play[i], xf_polar[i], drywet);
-    }
-  } else {
-    copy(xf_polar, xf_polar + size_, rec);
-  }
+  copy(xf_polar, xf_polar + size_, rec);
   write_head_ = (write_head_ + 1) % num_textures_;
   if (rec_len_ < num_textures_) {
     rec_len_++;
