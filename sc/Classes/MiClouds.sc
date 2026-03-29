@@ -11,8 +11,8 @@ MiClouds : MultiOutUGen {
 	}
 
 	checkInputs {
-		if ( inputs.at(17).rate != 'audio', {
-			^("input is not audio rate:" + inputs.at(17) + inputs.at(17).rate);
+		if ( inputs.at(18).rate != 'audio', {
+			^("input is not audio rate:" + inputs.at(18) + inputs.at(18).rate);
 		});
 		^this.checkValidInputs;
 	}
