@@ -101,7 +101,7 @@ void FrameTransformation::Process(
 
   if (!idle_) {
     // Normal swap on rising edge of record.
-    if (record && !prev_record_) {
+    if (record && !prev_record_ && record) {
       swap(rec_buf_, play_buf_);
       play_len_ = rec_len_;
       rec_len_ = 0;
@@ -112,7 +112,7 @@ void FrameTransformation::Process(
     prev_record_ = record;
   } else {
     // Idle: exit on rising edge of record, start fresh without swap.
-    if (record && !prev_record_) {
+    if (record && !prev_record_ && record) {
       idle_ = false;
     }
     prev_record_ = record;
