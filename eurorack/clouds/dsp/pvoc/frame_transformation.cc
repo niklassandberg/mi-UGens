@@ -8,10 +8,10 @@
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in
 // all copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -19,7 +19,7 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-// 
+//
 // See http://creativecommons.org/licenses/MIT/ for more information.
 //
 // -----------------------------------------------------------------------------
@@ -48,25 +48,31 @@ void FrameTransformation::Init(
     int32_t num_textures) {
   fft_size_ = fft_size;
   size_ = (fft_size >> 1) - kHighFrequencyTruncation;
-  
-  texture_buffer_ = buffer;
-  num_textures_ = num_textures - 2;  // Last 2 texture slots used for phases_/phases_delta_.
-  phases_ = &texture_buffer_[num_textures_ * size_];
+
+  // Split available magnitude slots equally between two buffers.
+  // The last 2 slots (out of num_textures) are reserved for phases_/phases_delta_.
+  num_textures_ = (num_textures - 2) / 2;
+  rec_buf_ = buffer;
+  play_buf_ = buffer + num_textures_ * size_;
+  phases_ = buffer + 2 * num_textures_ * size_;
   phases_delta_ = phases_ + size_;
-  // Phase ring buffer follows immediately after phases_ and phases_delta_.
+  // Live angle tracking + feedback blend buffer follow phases_delta_.
   phase_texture_buffer_ = phases_delta_ + size_;
 
-  write_head_ = 0;
   glitch_algorithm_ = 0;
   Reset();
 }
 
 void FrameTransformation::Reset() {
-  fill(&texture_buffer_[0], &texture_buffer_[num_textures_ * size_], 0.0f);
-  fill(&phase_texture_buffer_[0], &phase_texture_buffer_[num_textures_ * size_], 0.0f);
+  fill(rec_buf_, rec_buf_ + num_textures_ * size_, 0.0f);
+  fill(play_buf_, play_buf_ + num_textures_ * size_, 0.0f);
+  fill(phase_texture_buffer_, phase_texture_buffer_ + 2 * size_, 0.0f);
   write_head_ = 0;
   phasor_index_ = 0;
   phasor_fractional_ = 0.0f;
+  rec_len_ = 0;
+  play_len_ = 0;
+  prev_record_ = false;
 }
 
 void FrameTransformation::Process(
@@ -79,13 +85,26 @@ void FrameTransformation::Process(
   bool record = parameters.spectral.record;
   bool freeze = parameters.freeze;
   bool glitch = parameters.gate;
-  
-  if (!freeze && record) {
-    RectangularToPolar(fft_out);
-    StoreMagnitudes(fft_out);
+
+  // On any record edge (low→high or high→low): swap rec/play buffers.
+  if (record != prev_record_) {
+    prev_record_ = record;
+    swap(rec_buf_, play_buf_);
+    play_len_ = rec_len_;
+    rec_len_ = 0;
+    write_head_ = 0;
+    phasor_index_ = 0;
+    phasor_fractional_ = 0.0f;
   }
 
-  ReplayMagnitudes(fft_out, parameters.position, (!freeze) * parameters.spectral.speed);
+  if (!freeze && record) {
+    RectangularToPolar(fft_out);
+    StoreMagnitudes(fft_out, parameters.dry_wet);
+  }
+
+  ReplayMagnitudes(fft_out, parameters.position,
+                   (!freeze) * parameters.spectral.speed,
+                   parameters.spectral.size);
   float* feedback_buf = phase_texture_buffer_ + size_;
   BlendFeedback(fft_out, parameters.spectral.refresh_rate, feedback_buf);
   copy(feedback_buf, feedback_buf + size_, ifft_in);
@@ -308,10 +327,21 @@ void FrameTransformation::ShiftMagnitudes(
   copy(&temp[0], &temp[size_], &destination[0]);
 }
 
-void FrameTransformation::StoreMagnitudes(float* xf_polar) {
-  float* a = &texture_buffer_[write_head_ * size_];
-  copy(xf_polar, xf_polar + size_, a);
+void FrameTransformation::StoreMagnitudes(float* xf_polar, float drywet) {
+  float* rec = rec_buf_ + write_head_ * size_;
+  if (play_len_ > 0) {
+    // Blend live magnitudes with corresponding frame from play buffer.
+    float* play = play_buf_ + (write_head_ % play_len_) * size_;
+    for (int32_t i = 0; i < size_; ++i) {
+      rec[i] = Crossfade(play[i], xf_polar[i], drywet);
+    }
+  } else {
+    copy(xf_polar, xf_polar + size_, rec);
+  }
   write_head_ = (write_head_ + 1) % num_textures_;
+  if (rec_len_ < num_textures_) {
+    rec_len_++;
+  }
 }
 
 void FrameTransformation::BlendFeedback(
@@ -350,29 +380,42 @@ void FrameTransformation::BlendFeedback(
   }
 }
 
-void FrameTransformation::ReplayMagnitudes(float* xf_polar, float position, float speed) {
+void FrameTransformation::ReplayMagnitudes(
+    float* xf_polar, float position, float speed, float size_param) {
+  if (play_len_ < 2) {
+    fill(xf_polar, xf_polar + size_, 0.0f);
+    return;
+  }
+
+  int32_t effective_length = static_cast<int32_t>(play_len_ * size_param);
+  if (effective_length < 2) effective_length = 2;
+
+  // Advance phasor and extract integer carry.
   phasor_fractional_ += speed;
   int32_t carry = static_cast<int32_t>(phasor_fractional_);
   phasor_fractional_ -= float(carry);
   if (phasor_fractional_ < 0.0f) { phasor_fractional_ += 1.0f; carry--; }
   phasor_index_ += carry;
-  if (phasor_index_ >= num_textures_) phasor_index_ -= num_textures_;
-  else if (phasor_index_ < 0) phasor_index_ += num_textures_;
-
-  float position_hole = position * float(num_textures_ - 1);
+  // Wrap phasor within effective_length.
+  phasor_index_ = ((phasor_index_ % effective_length) + effective_length) % effective_length;
+  
+  // Position selects absolute frame within [0, effective_length).
+  float position_hole = position * float(effective_length - 1);
   int32_t position_index = static_cast<int32_t>(position_hole);
   float position_fractional = position_hole - float(position_index);
-  
+
   float index_fractional = position_fractional + phasor_fractional_;
   int32_t index_overflow = static_cast<int32_t>(index_fractional);
   index_fractional -= float(index_overflow);
 
-  int32_t offset = position_index + phasor_index_ + index_overflow;
+  int32_t base = position_index + phasor_index_ + index_overflow;
+  base = ((base % effective_length) + effective_length) % effective_length;
 
-  int32_t pos_a = (write_head_ - 1 - offset + 2 * num_textures_) % num_textures_;
-  int32_t pos_b = (write_head_ - 2 - offset + 2 * num_textures_) % num_textures_;
-  float* a = &texture_buffer_[pos_a * size_];
-  float* b = &texture_buffer_[pos_b * size_];
+  int32_t pos_a = base;
+  int32_t pos_b = (pos_a + 1 < effective_length) ? pos_a + 1 : 0;
+
+  float* a = play_buf_ + pos_a * size_;
+  float* b = play_buf_ + pos_b * size_;
   for (int32_t i = 0; i < size_; ++i) {
     xf_polar[i] = Crossfade(a[i], b[i], index_fractional);
   }

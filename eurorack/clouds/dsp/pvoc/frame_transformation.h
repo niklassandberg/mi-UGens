@@ -68,30 +68,34 @@ class FrameTransformation {
       float* xf_polar,
       float amount);
   void QuantizeMagnitudes(float* xf_polar, float amount);
-  void StoreMagnitudes(float* xf_polar);
+  void StoreMagnitudes(float* xf_polar, float drywet);
   void BlendFeedback(float* xf_polar, float feedback, float* a);
   void SetPhases(float* destination, float diffusion, float pitch_ratio);
-  void ReplayMagnitudes(float* xf_polar, float position, float speed);
+  void ReplayMagnitudes(float* xf_polar, float position, float speed, float size_param);
   void DiffuseMagnitudes(float* xf_polar, float diffusion);
-  
+
   inline void fast_p2r(float magnitude, uint16_t angle, float* re, float* im) {
     angle >>= 6;
     *re = magnitude * lut_sin[angle + 256];
     *im = magnitude * lut_sin[angle];
   }
-  
+
   int32_t fft_size_;
-  int32_t num_textures_;
+  int32_t num_textures_;   // per buffer
   int32_t size_;
   int32_t write_head_;
 
   int32_t phasor_index_;
   float phasor_fractional_;
-  
-  // Magnitude buffers.
-  float* texture_buffer_;
 
-  // Per-frame stored phase ring buffer (num_textures_ * size_ floats).
+  // Two magnitude ring buffers (rec/play swap on record edge).
+  float* rec_buf_;
+  float* play_buf_;
+  int32_t rec_len_;
+  int32_t play_len_;
+  bool prev_record_;
+
+  // Live input angle tracking (size_ floats) + feedback blend buffer (size_ floats).
   float* phase_texture_buffer_;
 
   // Current synthesis phase tracking.
