@@ -118,7 +118,7 @@ void FrameTransformation::Process(
     prev_record_ = record;
   }
 
-  if (record && !idle_) {
+  if (!idle_) {
     RectangularToPolar(fft_out);
     StoreMagnitudes(fft_out);
   }
