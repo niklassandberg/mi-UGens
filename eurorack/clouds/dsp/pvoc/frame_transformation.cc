@@ -88,7 +88,6 @@ void FrameTransformation::Process(
 
   // On any record edge (low→high or high→low): swap rec/play buffers.
   if (record != prev_record_ && record) {
-    prev_record_ = record;
     swap(rec_buf_, play_buf_);
     play_len_ = rec_len_;
     rec_len_ = 0;
@@ -96,6 +95,8 @@ void FrameTransformation::Process(
     phasor_index_ = 0;
     phasor_fractional_ = 0.0f;
   }
+  prev_record_ = record;
+
   RectangularToPolar(fft_out);
   StoreMagnitudes(fft_out, parameters.dry_wet);
   ReplayMagnitudes(fft_out, parameters.position,
