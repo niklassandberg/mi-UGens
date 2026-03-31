@@ -61,10 +61,10 @@ void PhaseVocoder::Init(
   for (int32_t i = 0; i < num_channels_; ++i) {
     float* ana_syn_buffer = allocator[i]->Allocate<float>(
         (fft_size + (fft_size >> 1)) * 2);
-    // Each texture slot needs texture_size floats for magnitudes plus
-    // texture_size floats for the phase ring (now float, same size as magnitudes).
+    // Each frame slot is fft_size floats (full split-complex frame, rec + play).
+    // Plus 4*texture_size for fixed-size buffers (phases, phases_delta, phase_texture_buf x2).
     num_textures = min(
-        allocator[i]->free() / (2 * sizeof(float) * texture_size) + 1,
+        allocator[i]->free() / (2 * sizeof(float) * fft_size),
         num_textures);
     stft_[i].Init(
         &fft_,
@@ -77,11 +77,10 @@ void PhaseVocoder::Init(
         &frame_transformation_[i]);
   }
   for (int32_t i = 0; i < num_channels_; ++i) {
-    // Allocate magnitude ring (num_textures slots) + phase ring
-    // ((num_textures-2) * texture_size floats after the magnitude ring).
-    size_t phase_ring_floats = (num_textures - 2) * texture_size;
+    // Allocate rec_buf + play_buf (each num_textures * fft_size floats, full
+    // split-complex frames) plus 4*texture_size for fixed-size buffers.
     float* texture_buffer = allocator[i]->Allocate<float>(
-        num_textures * texture_size + phase_ring_floats);
+        2 * num_textures * fft_size + 4 * texture_size);
     frame_transformation_[i].Init(texture_buffer, fft_size, num_textures);
   }
 }

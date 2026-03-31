@@ -68,10 +68,10 @@ class FrameTransformation {
       float* xf_polar,
       float amount);
   void QuantizeMagnitudes(float* xf_polar, float amount);
-  void StoreMagnitudes(float* xf_polar);
+  void StoreFFT(float* fft_out);
   void BlendFeedback(float* xf_polar, float feedback, float* a);
   void SetPhases(float* destination, float diffusion, float pitch_ratio);
-  void ReplayMagnitudes(float* xf_polar, float position, float speed, float size_param);
+  void ReplayFFT(float* xf_polar, float position, float speed, float size_param);
   void DiffuseMagnitudes(float* xf_polar, float diffusion);
 
   inline void fast_p2r(float magnitude, uint16_t angle, float* re, float* im) {

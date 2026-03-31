@@ -49,14 +49,18 @@ void FrameTransformation::Init(
   fft_size_ = fft_size;
   size_ = (fft_size >> 1) - kHighFrequencyTruncation;
 
-  // Split available magnitude slots equally between two buffers.
-  // The last 2 slots (out of num_textures) are reserved for phases_/phases_delta_.
-  num_textures_ = (num_textures - 2) / 2;
+  // Layout (floats):
+  //   rec_buf_           : num_textures_ * fft_size_  (full split-complex frames)
+  //   play_buf_          : num_textures_ * fft_size_  (full split-complex frames)
+  //   phases_            : size_
+  //   phases_delta_      : size_
+  //   phase_texture_buf_ : 2 * size_  (live angle + feedback blend)
+  // Total = 2*num_textures_*fft_size_ + 4*size_  (matches phase_vocoder.cc allocation)
+  num_textures_ = num_textures;
   rec_buf_ = buffer;
-  play_buf_ = buffer + num_textures_ * size_;
-  phases_ = buffer + 2 * num_textures_ * size_;
+  play_buf_ = buffer + num_textures_ * fft_size_;
+  phases_ = buffer + 2 * num_textures_ * fft_size_;
   phases_delta_ = phases_ + size_;
-  // Live angle tracking + feedback blend buffer follow phases_delta_.
   phase_texture_buffer_ = phases_delta_ + size_;
 
   glitch_algorithm_ = 0;
@@ -64,8 +68,8 @@ void FrameTransformation::Init(
 }
 
 void FrameTransformation::Reset() {
-  fill(rec_buf_, rec_buf_ + num_textures_ * size_, 0.0f);
-  fill(play_buf_, play_buf_ + num_textures_ * size_, 0.0f);
+  fill(rec_buf_, rec_buf_ + num_textures_ * fft_size_, 0.0f);
+  fill(play_buf_, play_buf_ + num_textures_ * fft_size_, 0.0f);
   fill(phase_texture_buffer_, phase_texture_buffer_ + 2 * size_, 0.0f);
   write_head_ = 0;
   phasor_index_ = 0;
@@ -118,12 +122,12 @@ void FrameTransformation::Process(
   prev_record_ = record;
 
   if (!idle_) {
-    RectangularToPolar(fft_out);
-    StoreMagnitudes(fft_out);
+    StoreFFT(fft_out);
   }
-  ReplayMagnitudes(fft_out, parameters.position,
-                   (!freeze) * parameters.spectral.speed,
-                   parameters.spectral.size);
+  ReplayFFT(fft_out, parameters.position,
+            (!freeze) * parameters.spectral.speed,
+            parameters.spectral.size);
+  RectangularToPolar(fft_out);
   float* feedback_buf = phase_texture_buffer_ + size_;
   BlendFeedback(fft_out, parameters.spectral.refresh_rate, feedback_buf);
   copy(feedback_buf, feedback_buf + size_, ifft_in);
@@ -346,13 +350,10 @@ void FrameTransformation::ShiftMagnitudes(
   copy(&temp[0], &temp[size_], &destination[0]);
 }
 
-void FrameTransformation::StoreMagnitudes(float* xf_polar) {
-  float* rec = rec_buf_ + write_head_ * size_;
-  copy(xf_polar, xf_polar + size_, rec);
+void FrameTransformation::StoreFFT(float* fft_out) {
+  copy(fft_out, fft_out + fft_size_, rec_buf_ + write_head_ * fft_size_);
   write_head_ = (write_head_ + 1) % num_textures_;
-  if (rec_len_ < num_textures_) {
-    rec_len_++;
-  }
+  if (rec_len_ < num_textures_) { rec_len_++; }
 }
 
 void FrameTransformation::BlendFeedback(
@@ -391,10 +392,10 @@ void FrameTransformation::BlendFeedback(
   }
 }
 
-void FrameTransformation::ReplayMagnitudes(
+void FrameTransformation::ReplayFFT(
     float* xf_polar, float position, float speed, float size_param) {
   if (play_len_ < 2) {
-    fill(xf_polar, xf_polar + size_, 0.0f);
+    fill(xf_polar, xf_polar + fft_size_, 0.0f);
     return;
   }
 
@@ -407,10 +408,8 @@ void FrameTransformation::ReplayMagnitudes(
   phasor_fractional_ -= float(carry);
   if (phasor_fractional_ < 0.0f) { phasor_fractional_ += 1.0f; carry--; }
   phasor_index_ += carry;
-  // Wrap phasor within effective_length.
   phasor_index_ = ((phasor_index_ % effective_length) + effective_length) % effective_length;
-  
-  // Position selects absolute frame within [0, effective_length).
+
   float position_hole = position * float(effective_length - 1);
   int32_t position_index = static_cast<int32_t>(position_hole);
   float position_fractional = position_hole - float(position_index);
@@ -425,11 +424,13 @@ void FrameTransformation::ReplayMagnitudes(
   int32_t pos_a = base;
   int32_t pos_b = (pos_a + 1 < effective_length) ? pos_a + 1 : 0;
 
-  float* a = play_buf_ + pos_a * size_;
-  float* b = play_buf_ + pos_b * size_;
-  for (int32_t i = 0; i < size_; ++i) {
-    xf_polar[i] = Crossfade(a[i], b[i], index_fractional);
+  float* frame_a = play_buf_ + pos_a * fft_size_;
+  float* frame_b = play_buf_ + pos_b * fft_size_;
+  for (int32_t i = 0; i < fft_size_; ++i) {
+    xf_polar[i] = Crossfade(frame_a[i], frame_b[i], index_fractional);
   }
+  xf_polar[0] = 0.0f;
+  xf_polar[fft_size_ >> 1] = 0.0f;
 }
 
 }  // namespace clouds
