@@ -112,18 +112,15 @@ static void MiClouds_Ctor(MiClouds *unit) {
         kFftSize +                              // fft or ifft buffer
         (kFftSize + (kFftSize >> 1)) * 2        // analysis + synthesis buffers
     );
-    const int kNumTextures  = 2816;             // ~2min spectral memory at 48kHz (hop=2048, 8192 FFT)
-    const int kTextureSpace = sizeof(float) * kNumTextures *
-        (kFftSize / 2 - clouds::kHighFrequencyTruncation);
-    // Phase ring: one uint16_t phase snapshot per bin per texture frame.
-    // Eliminates current-audio phase bleed when replaying old textures.
-    const int kPhaseRingSpace = sizeof(uint16_t) * (kNumTextures - 1) *
-        (kFftSize / 2 - clouds::kHighFrequencyTruncation);
-    // 7-frame working buffer for feedback blending in BlendFeedback().
-    const int kWorkingFrames = sizeof(float) * 7 *
-        (kFftSize / 2 - clouds::kHighFrequencyTruncation);
+    // Each frame now stores fft_size floats (full split-complex: real + imag).
+    // Buffer sized for old layout; phase_vocoder.cc limit formula fits within it.
+    // Actual num_textures ≈ 1048 (~22 sec at 48kHz, hop=1024) with this buffer.
+    const int kNumTextures  = 2816;             // cap; actual count limited by buffer size
+    const int texture_size  = kFftSize / 2 - clouds::kHighFrequencyTruncation;
+    const int kTextureSpace = sizeof(float) * kNumTextures * texture_size;
+    const int kPhaseRingSpace = sizeof(float) * (kNumTextures - 1) * texture_size;
     const int kWorkspace    = 53376;            // diffuser + reverb + correlator
-    int smallBufSize = kFftOverhead + kTextureSpace + kPhaseRingSpace + kWorkingFrames;
+    int smallBufSize = kFftOverhead + kTextureSpace + kPhaseRingSpace;
     int largeBufSize = smallBufSize + kWorkspace;
     
     // alloc mem

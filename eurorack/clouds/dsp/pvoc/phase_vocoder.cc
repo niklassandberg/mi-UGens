@@ -62,9 +62,12 @@ void PhaseVocoder::Init(
     float* ana_syn_buffer = allocator[i]->Allocate<float>(
         (fft_size + (fft_size >> 1)) * 2);
     // Each frame slot is fft_size floats (full split-complex frame, rec + play).
-    // Plus 4*texture_size for fixed-size buffers (phases, phases_delta, phase_texture_buf x2).
+    // Subtract fixed overhead (phases_, phases_delta_, phase_texture_buf x2) before dividing.
+    size_t fixed_overhead = 4 * sizeof(float) * texture_size;
+    size_t free_for_frames = allocator[i]->free() > fixed_overhead
+        ? allocator[i]->free() - fixed_overhead : 0;
     num_textures = min(
-        allocator[i]->free() / (2 * sizeof(float) * fft_size),
+        free_for_frames / (2 * sizeof(float) * fft_size),
         num_textures);
     stft_[i].Init(
         &fft_,
