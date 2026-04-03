@@ -96,7 +96,7 @@ void FrameTransformation::Process(
 
   if(parameters.phasor_reset) {
     phasor_index_ = 0;
-    phasor_fractional_ = 0.0f;
+    //phasor_fractional_ = 0.0f;
   }     
 
   // Rising edge of record_reset: clear rec buffer and go idle.
@@ -144,7 +144,7 @@ void FrameTransformation::Process(
   prev_record_ = record;
 
   if (!idle_) {
-    if( rec_count_ < 1 || parameters.spectral.record_mode == 0 ) StoreFFT(fft_out);
+    if( rec_count_ == 0 || parameters.spectral.record_mode == 0 ) StoreFFT(fft_out);
     else BlendFFT(fft_out);
   }
   ReplayFFT(fft_out, parameters.position,
