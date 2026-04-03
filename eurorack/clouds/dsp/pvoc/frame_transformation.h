@@ -94,6 +94,7 @@ class FrameTransformation {
   // Two magnitude ring buffers (rec/play swap on record edge).
   float* rec_buf_;
   float* play_buf_;
+  float* temp_buff_;
   int32_t rec_len_;
   int32_t play_len_;
   bool prev_record_;
