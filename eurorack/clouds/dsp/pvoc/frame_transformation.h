@@ -71,7 +71,7 @@ class FrameTransformation {
       float amount);
   void QuantizeMagnitudes(float* xf_polar, float amount);
   void StoreFFT(float* fft_out);
-  void BlendFFT(float* fft_out);
+  void BlendFFT(float* fft_out,float* fft_in);
   void BlendFeedback(float* xf_polar, float feedback, float* a);
   void SetPhases(float* destination, float diffusion, float pitch_ratio);
   void ReplayFFT(float* xf_polar, float position, float speed, float size_param);

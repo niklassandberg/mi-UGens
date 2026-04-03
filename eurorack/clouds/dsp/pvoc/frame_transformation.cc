@@ -62,6 +62,7 @@ void FrameTransformation::Init(
   phases_ = buffer + 2 * num_textures_ * fft_size_;
   phases_delta_ = phases_ + size_;
   phase_texture_buffer_ = phases_delta_ + size_;
+  prev_record_mode_ = 0;
 
   glitch_algorithm_ = 0;
   Reset();
@@ -80,6 +81,7 @@ void FrameTransformation::Reset() {
   prev_record_reset_ = false;
   idle_ = true;
   rec_count_ = 0;
+  //prev_record_mode_ = 0; //This could NOT by set here!!! Reset does not mean init.
 }
 
 void FrameTransformation::Process(
@@ -117,11 +119,11 @@ void FrameTransformation::Process(
 
       if(parameters.spectral.record_mode == 0 && prev_record_mode_ == 1) {
         rec_buf_ = temp_buff_;
-        prev_record_mode_ = 1;
+        prev_record_mode_ = 0;
       } else if(parameters.spectral.record_mode == 1 && prev_record_mode_ == 0) {
         temp_buff_ = rec_buf_;
         rec_buf_ = play_buf_;
-        prev_record_mode_ = 0;
+        prev_record_mode_ = 1;
       }
 
       play_len_ = rec_len_;
@@ -143,10 +145,6 @@ void FrameTransformation::Process(
   }
   prev_record_ = record;
 
-  if (!idle_) {
-    if( rec_count_ == 0 || parameters.spectral.record_mode == 0 ) StoreFFT(fft_out);
-    else BlendFFT(fft_out);
-  }
   ReplayFFT(fft_out, parameters.position,
             (!freeze) * parameters.spectral.speed,
             parameters.spectral.size);
@@ -175,6 +173,12 @@ void FrameTransformation::Process(
 
   ifft_in[0] = 0.0f;
   ifft_in[fft_size_ >> 1] = 0.0f;
+  
+  if (!idle_) {
+    if( rec_count_ == 0 || parameters.spectral.record_mode == 0 ) StoreFFT(fft_out);
+    else BlendFFT(fft_out,ifft_in);
+  }
+
 }
 
 void FrameTransformation::RectangularToPolar(float* fft_data) {
@@ -379,10 +383,10 @@ void FrameTransformation::StoreFFT(float* fft_out) {
   if (rec_len_ < num_textures_) { rec_len_++; }
 }
 
-void FrameTransformation::BlendFFT(float* fft_out) {
+void FrameTransformation::BlendFFT(float* fft_out,float* fft_in) {
   float* dst = rec_buf_ + write_head_ * fft_size_;
   for (int32_t i = 0; i < fft_size_; ++i) {
-      dst[i] = dst[i] + fft_out[i];
+      dst[i] = fft_in[i] + fft_out[i];
   }
   ++write_head_;
   if (rec_len_  >= num_textures_ || rec_len_ <= write_head_) { 
