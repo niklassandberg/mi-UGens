@@ -120,11 +120,11 @@ void FrameTransformation::Process(
 
       if(parameters.spectral.record_mode == 0 && prev_record_mode_ == 1) {
         rec_buf_ = temp_buff_;
-        prev_record_mode_ = 0;
+        prev_record_mode_ = 1;
       } else if(parameters.spectral.record_mode == 1 && prev_record_mode_ == 0) {
         temp_buff_ = rec_buf_;
         rec_buf_ = play_buf_;
-        prev_record_mode_ = 1;
+        prev_record_mode_ = 0;
       }
 
       play_len_ = rec_len_;
