@@ -36,6 +36,7 @@
 
 #include "clouds/dsp/frame.h"
 #include "clouds/dsp/parameters.h"
+#include "frame_transformation.h"
 
 namespace clouds {
 
@@ -118,6 +119,7 @@ void FrameTransformation::Process(
     // Normal swap on rising edge of record.
     if (record && !prev_record_ ) {
 
+      /*
       if(parameters.spectral.record_mode == 0 && prev_record_mode_ == 1) {
         rec_buf_ = temp_buff_;
         prev_record_mode_ = 1;
@@ -125,18 +127,18 @@ void FrameTransformation::Process(
         temp_buff_ = rec_buf_;
         rec_buf_ = play_buf_;
         prev_record_mode_ = 0;
-      }
+      }*/
 
       play_len_ = rec_len_;
       write_head_ = 0;
       ++rec_count_;
 
-      if(parameters.spectral.record_mode == 0) {
+      //if(parameters.spectral.record_mode == 0) {
         swap(rec_buf_, play_buf_);
         rec_len_ = 0;
         phasor_index_ = 0;
         phasor_fractional_ = 0.0f;
-      }
+      //}
     }
   } else {
     // Idle: exit on rising edge of record, start fresh without swap.
@@ -145,6 +147,10 @@ void FrameTransformation::Process(
     }
   }
   prev_record_ = record;
+
+  if (!idle_) {
+    StoreFFT(fft_out);
+  }
 
   ReplayFFT(fft_out, parameters.position,
             (!freeze) * parameters.spectral.speed,
@@ -176,10 +182,9 @@ void FrameTransformation::Process(
   ifft_in[fft_size_ >> 1] = 0.0f;
   
   if (!idle_) {
-    if( rec_count_ == 0 || parameters.spectral.record_mode == 0 ) StoreFFT(fft_out);
-    else BlendFFT(fft_out,ifft_in);
+    if( rec_count_ > 0 && parameters.spectral.record_mode == 1 ) BlendFFT(ifft_in);
+    moveWrriteHead(parameters);
   }
-
 }
 
 void FrameTransformation::RectangularToPolar(float* fft_data) {
@@ -380,21 +385,29 @@ void FrameTransformation::ShiftMagnitudes(
 
 void FrameTransformation::StoreFFT(float* fft_out) {
   copy(fft_out, fft_out + fft_size_, rec_buf_ + write_head_ * fft_size_);
-  write_head_ = (write_head_ + 1) % num_textures_;
-  if (rec_len_ < num_textures_) { rec_len_++; }
 }
 
-void FrameTransformation::BlendFFT(float* fft_out,float* fft_in) {
+void FrameTransformation::BlendFFT(float* fft_in) {
   float* dst = rec_buf_ + write_head_ * fft_size_;
   for (int32_t i = 0; i < fft_size_; ++i) {
-      dst[i] = fft_in[i] + fft_out[i];
-  }
-  ++write_head_;
-  if (rec_len_  >= num_textures_ || rec_len_ <= write_head_) { 
-    write_head_=0;
-    prev_record_mode_ = 0; //just to next record. 
+      dst[i] = fft_in[i] + dst[i];
   }
 }
+
+void FrameTransformation::moveWrriteHead( const Parameters& parameters ) {
+  //if(parameters.spectral.record_mode == 0) {
+    write_head_ = (write_head_ + 1) % num_textures_;
+    if (rec_len_ < num_textures_) { rec_len_++; }
+  /*}
+  else {
+    ++write_head_;
+    if (rec_len_  >= num_textures_ || rec_len_ <= write_head_) { 
+      write_head_=0;
+      prev_record_mode_ = 0; //just to next record.
+    }
+  }*/
+}
+
 
 void FrameTransformation::BlendFeedback(
     float* xf_polar,
