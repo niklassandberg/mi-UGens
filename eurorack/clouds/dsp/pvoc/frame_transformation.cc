@@ -124,16 +124,16 @@ void FrameTransformation::Process(
         prev_record_mode_ = 0;
       }
 
+      play_len_ = rec_len_;
+      write_head_ = 0;
+      ++rec_count_;
+
       if(parameters.spectral.record_mode == 0) {
         swap(rec_buf_, play_buf_);
         rec_len_ = 0;
         phasor_index_ = 0;
         phasor_fractional_ = 0.0f;
       }
-
-      play_len_ = rec_len_;
-      write_head_ = 0;
-      ++rec_count_;
     }
   } else {
     // Idle: exit on rising edge of record, start fresh without swap.
