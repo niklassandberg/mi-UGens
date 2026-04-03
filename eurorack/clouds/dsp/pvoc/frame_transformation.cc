@@ -78,7 +78,8 @@ void FrameTransformation::Reset() {
   play_len_ = 0;
   prev_record_ = false;
   prev_record_reset_ = false;
-  idle_ = false;
+  idle_ = true;
+  rec_count_ = 0;
 }
 
 void FrameTransformation::Process(
@@ -93,25 +94,46 @@ void FrameTransformation::Process(
   bool freeze = parameters.freeze;
   bool glitch = parameters.gate;
 
+  if(parameters.phasor_reset) {
+    phasor_index_ = 0;
+    phasor_fractional_ = 0.0f;
+  }     
+
   // Rising edge of record_reset: clear rec buffer and go idle.
-  // play_buf_ keeps playing unaffected.
   if (record_reset && !prev_record_reset_) {
-    rec_len_ = 0;
     write_head_ = 0;
+    rec_len_ = 0;
+    play_len_ = 0;
+    prev_record_ = false;
+    prev_record_reset_ = false;
     idle_ = true;
-    prev_record_ = record;
+    rec_count_ = 0;
   }
   prev_record_reset_ = record_reset;
 
   if (!idle_) {
     // Normal swap on rising edge of record.
-    if (record && !prev_record_) {
-      swap(rec_buf_, play_buf_);
+    if (record && !prev_record_ ) {
+
+      if(parameters.spectral.record_mode == 0 && prev_record_mode_ == 1) {
+        if (play_buf_ == buffer) rec_buf_ = buffer + num_textures_ * fft_size_;
+        else rec_buf_ = buffer;
+        prev_record_mode_ = 1;
+      } else if(parameters.spectral.record_mode == 1 && prev_record_mode_ == 0) {
+        rec_buf_ = play_buf_;
+        prev_record_mode_ = 0;
+      }
+
+      if(parameters.spectral.record_mode == 0) {
+        swap(rec_buf_, play_buf_);
+        rec_len_ = 0;
+        phasor_index_ = 0;
+        phasor_fractional_ = 0.0f;
+      }
+
       play_len_ = rec_len_;
-      rec_len_ = 0;
       write_head_ = 0;
-      phasor_index_ = 0;
-      phasor_fractional_ = 0.0f;
+      ++rec_count_;
     }
   } else {
     // Idle: exit on rising edge of record, start fresh without swap.
@@ -122,7 +144,8 @@ void FrameTransformation::Process(
   prev_record_ = record;
 
   if (!idle_) {
-    StoreFFT(fft_out);
+    if( rec_count_ < 1 || parameters.spectral.record_mode == 0 ) StoreFFT(fft_out);
+    else BlendFFT(fft_out);
   }
   ReplayFFT(fft_out, parameters.position,
             (!freeze) * parameters.spectral.speed,
@@ -354,6 +377,18 @@ void FrameTransformation::StoreFFT(float* fft_out) {
   copy(fft_out, fft_out + fft_size_, rec_buf_ + write_head_ * fft_size_);
   write_head_ = (write_head_ + 1) % num_textures_;
   if (rec_len_ < num_textures_) { rec_len_++; }
+}
+
+void FrameTransformation::BlendFFT(float* fft_out) {
+  float* dst = rec_buf_ + write_head_ * fft_size_;
+  for (int32_t i = 0; i < fft_size_; ++i) {
+      dst[i] = (dst[i] + fft_out[i]) * 0.5f;
+  }
+  ++write_head_;
+  if (rec_len_  >= num_textures_ || rec_len_ <= write_head_) { 
+    write_head_=0;
+    prev_record_mode_ = 0; //just to next record. 
+  }
 }
 
 void FrameTransformation::BlendFeedback(

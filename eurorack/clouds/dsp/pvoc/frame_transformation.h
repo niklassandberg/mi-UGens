@@ -46,14 +46,16 @@ class FrameTransformation {
  public:
   FrameTransformation() { }
   ~FrameTransformation() { }
-  
+
   void Init(float* buffer, int32_t fft_size, int32_t num_textures);
   void Reset();
-  
+
   void Process(
       const Parameters& parameters,
       float* fft_out,
       float* ifft_in);
+
+  bool rec_buf_has_content() const { return rec_count_; }
   
  private:
   void RectangularToPolar(float* fft_data);
@@ -69,6 +71,7 @@ class FrameTransformation {
       float amount);
   void QuantizeMagnitudes(float* xf_polar, float amount);
   void StoreFFT(float* fft_out);
+  void BlendFFT(float* fft_out);
   void BlendFeedback(float* xf_polar, float feedback, float* a);
   void SetPhases(float* destination, float diffusion, float pitch_ratio);
   void ReplayFFT(float* xf_polar, float position, float speed, float size_param);
@@ -95,7 +98,9 @@ class FrameTransformation {
   int32_t play_len_;
   bool prev_record_;
   bool prev_record_reset_;
+  int8_t prev_record_mode_;
   bool idle_;
+  int32_t rec_count_;
 
   // Live input angle tracking (size_ floats) + feedback blend buffer (size_ floats).
   float* phase_texture_buffer_;

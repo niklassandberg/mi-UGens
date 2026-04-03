@@ -41,7 +41,7 @@ static InterfaceTable *ft;
 
 
 const uint16 kAudioBlockSize = 32;        // sig vs can't be smaller than this!
-const uint16 kNumArgs = 18;
+const uint16 kNumArgs = 20;
 
 
 enum ModParams {
@@ -211,6 +211,8 @@ void MiClouds_next( MiClouds *unit, int inNumSamples )
     float   speed  = IN0(15);
     float   size_s = IN0(16);
     bool    record_reset = IN0(17) > 0.f;
+    int8_t  record_mode  = static_cast<int8_t>(IN0(18));
+    bool    phasor_reset = IN0(19) > 0.f;
 
     
     float   *outL = OUT(0);
@@ -269,6 +271,8 @@ void MiClouds_next( MiClouds *unit, int inNumSamples )
     CONSTRAIN(size_s, 0.f, 1.f);
     p->spectral.record = record;
     p->spectral.record_reset = record_reset;
+    p->spectral.record_mode  = record_mode;
+    p->phasor_reset = phasor_reset;
     p->spectral.speed  = speed;
     p->spectral.size   = size_s;
     gp->set_low_fidelity(lofi);

@@ -47,6 +47,7 @@ struct Parameters {
   bool freeze;
   bool trigger;
   bool gate;
+  bool phasor_reset;
   
   struct Granular {
     float overlap;
@@ -60,10 +61,11 @@ struct Parameters {
     float refresh_rate;
     float phase_randomization;
     float warp;
-    bool  record;
-    bool  record_reset;
-    float speed;
-    float size;
+    bool    record;
+    bool    record_reset;
+    int8_t  record_mode;
+    float   speed;
+    float   size;
   } spectral;
 };
 
