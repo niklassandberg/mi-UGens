@@ -382,7 +382,7 @@ void FrameTransformation::StoreFFT(float* fft_out) {
 void FrameTransformation::BlendFFT(float* fft_out) {
   float* dst = rec_buf_ + write_head_ * fft_size_;
   for (int32_t i = 0; i < fft_size_; ++i) {
-      dst[i] = (dst[i] + fft_out[i]) * 0.5f;
+      dst[i] = dst[i] + fft_out[i];
   }
   ++write_head_;
   if (rec_len_  >= num_textures_ || rec_len_ <= write_head_) { 
