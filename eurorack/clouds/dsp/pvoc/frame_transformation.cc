@@ -117,13 +117,13 @@ void FrameTransformation::Process(
     // Normal swap on rising edge of record.
     if (record && !prev_record_ ) {
 
-      if(parameters.spectral.record_mode == 0 && prev_record_mode_ == 1) {
+      if(parameters.spectral.record_mode == 0 /*&& prev_record_mode_ == 1*/) {
         rec_buf_ = temp_buff_;
-        prev_record_mode_ = 0;
-      } else if(parameters.spectral.record_mode == 1 && prev_record_mode_ == 0) {
+        //prev_record_mode_ = 0;
+      } else if(parameters.spectral.record_mode == 1 /*&& prev_record_mode_ == 0*/) {
         temp_buff_ = rec_buf_;
         rec_buf_ = play_buf_;
-        prev_record_mode_ = 1;
+        //prev_record_mode_ = 1;
       }
 
       play_len_ = rec_len_;
