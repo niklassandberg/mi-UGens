@@ -112,33 +112,25 @@ void FrameTransformation::Process(
     prev_record_reset_ = false;
     idle_ = true;
     rec_count_ = 0;
+
+    swap(rec_buf_, play_buf_);
+    phasor_index_ = 0;
+    phasor_fractional_ = 0.0f;
   }
   prev_record_reset_ = record_reset;
 
   if (!idle_) {
-    // Normal swap on rising edge of record.
+    
     if (record && !prev_record_ ) {
-
-      /*
-      if(parameters.spectral.record_mode == 0 && prev_record_mode_ == 1) {
-        rec_buf_ = temp_buff_;
-        prev_record_mode_ = 1;
-      } else if(parameters.spectral.record_mode == 1 && prev_record_mode_ == 0) {
-        temp_buff_ = rec_buf_;
-        rec_buf_ = play_buf_;
-        prev_record_mode_ = 0;
-      }*/
 
       play_len_ = rec_len_;
       write_head_ = 0;
       ++rec_count_;
 
-      //if(parameters.spectral.record_mode == 0) {
-        swap(rec_buf_, play_buf_);
-        rec_len_ = 0;
-        phasor_index_ = 0;
-        phasor_fractional_ = 0.0f;
-      //}
+      swap(rec_buf_, play_buf_);
+      rec_len_ = 0;
+      phasor_index_ = 0;
+      phasor_fractional_ = 0.0f;
     }
   } else {
     // Idle: exit on rising edge of record, start fresh without swap.
