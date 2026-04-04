@@ -102,7 +102,7 @@ void FrameTransformation::Process(
 
   if(parameters.phasor_reset) {
     phasor_index_ = 0;
-    //phasor_fractional_ = 0.0f;
+    phasor_fractional_ = 0.0f;
   }     
 
   // Rising edge of record_reset: clear rec buffer and go idle.
@@ -465,7 +465,7 @@ void FrameTransformation::ReplayFFT(
   int32_t index_overflow = static_cast<int32_t>(index_fractional);
   index_fractional -= float(index_overflow);
 
-  int32_t base = position_index + phasor_index_ + index_overflow - latency_frames_;
+  int32_t base = position_index + phasor_index_ + index_overflow + latency_frames_;
   base = ((base % effective_length) + effective_length) % effective_length;
 
   int32_t pos_a = base;
