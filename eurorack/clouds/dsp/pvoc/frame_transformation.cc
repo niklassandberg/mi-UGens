@@ -469,7 +469,7 @@ void FrameTransformation::ReplayFFT(
   base = ((base % effective_length) + effective_length) % effective_length;
 
   int32_t pos_a = base;
-  int32_t pos_b = (pos_a - 1 < effective_length) ? pos_a - 1 : effective_length - 1;
+  int32_t pos_b = (pos_a + 1 < effective_length) ? pos_a + 1 : 0;
 
   float* frame_a = play_buf_ + pos_a * fft_size_;
   float* frame_b = play_buf_ + pos_b * fft_size_;
