@@ -84,7 +84,7 @@ void PhaseVocoder::Init(
     // split-complex frames) plus 4*texture_size for fixed-size buffers.
     float* texture_buffer = allocator[i]->Allocate<float>(
         2 * num_textures * fft_size + 4 * texture_size);
-    frame_transformation_[i].Init(texture_buffer, fft_size, num_textures);
+    frame_transformation_[i].Init(texture_buffer, fft_size, num_textures, fft_size / hop_ratio);
   }
 }
 

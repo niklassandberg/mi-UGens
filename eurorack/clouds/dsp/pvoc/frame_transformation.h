@@ -47,7 +47,7 @@ class FrameTransformation {
   FrameTransformation() { }
   ~FrameTransformation() { }
 
-  void Init(float* buffer, int32_t fft_size, int32_t num_textures);
+  void Init(float* buffer, int32_t fft_size, int32_t num_textures, int32_t hop_size);
   void Reset();
 
   void Process(
@@ -88,6 +88,7 @@ class FrameTransformation {
   int32_t num_textures_;   // per buffer
   int32_t size_;
   int32_t write_head_;
+  int32_t latency_frames_; // fft_size / (2 * hop_size), computed in Init
 
   int32_t phasor_index_;
   float phasor_fractional_;

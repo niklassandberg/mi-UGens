@@ -46,9 +46,11 @@ using namespace stmlib;
 void FrameTransformation::Init(
     float* buffer,
     int32_t fft_size,
-    int32_t num_textures) {
+    int32_t num_textures,
+    int32_t hop_size) {
   fft_size_ = fft_size;
   size_ = (fft_size >> 1) - kHighFrequencyTruncation;
+  latency_frames_ = fft_size / (2 * hop_size);
 
   // Layout (floats):
   //   rec_buf_           : num_textures_ * fft_size_  (full split-complex frames)
@@ -463,7 +465,7 @@ void FrameTransformation::ReplayFFT(
   int32_t index_overflow = static_cast<int32_t>(index_fractional);
   index_fractional -= float(index_overflow);
 
-  int32_t base = position_index + phasor_index_ + index_overflow;
+  int32_t base = position_index + phasor_index_ + index_overflow - latency_frames_;
   base = ((base % effective_length) + effective_length) % effective_length;
 
   int32_t pos_a = base;
