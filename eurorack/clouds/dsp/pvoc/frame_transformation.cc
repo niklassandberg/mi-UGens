@@ -83,6 +83,7 @@ void FrameTransformation::Reset() {
   play_len_ = 0;
   prev_record_ = false;
   prev_record_reset_ = false;
+  prev_phasor_reset_ = false;
   idle_ = true;
   rec_count_ = 0;
   //prev_record_mode_ = 0; //This could NOT by set here!!! Reset does not mean init.
@@ -99,11 +100,13 @@ void FrameTransformation::Process(
   bool record_reset = parameters.spectral.record_reset;
   bool freeze = parameters.freeze;
   bool glitch = parameters.gate;
+  bool phasor_reset = parameters.phasor_reset;
 
-  if(parameters.phasor_reset) {
+  if(phasor_reset && !prev_phasor_reset_) {
     phasor_index_ = 0;
     phasor_fractional_ = 0.0f;
-  }     
+  }
+  prev_phasor_reset_ = phasor_reset;
 
   // Rising edge of record_reset: clear rec buffer and go idle.
   if (record_reset && !prev_record_reset_) {

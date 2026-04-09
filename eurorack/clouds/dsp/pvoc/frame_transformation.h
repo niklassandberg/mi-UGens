@@ -101,6 +101,7 @@ class FrameTransformation {
   int32_t play_len_;
   bool prev_record_;
   bool prev_record_reset_;
+  bool prev_phasor_reset_;
   int8_t prev_record_mode_;
   bool idle_;
   int32_t rec_count_;
