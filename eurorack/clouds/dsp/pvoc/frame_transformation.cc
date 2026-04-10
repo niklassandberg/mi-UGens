@@ -184,7 +184,7 @@ void FrameTransformation::Process(
   }
   QuantizeMagnitudes(ifft_in, parameters.spectral.quantization);
   SetPhases(ifft_in, parameters.spectral.phase_randomization, parameters.pitch);
-  PhaseEffect(temp, ifft_in, parameters.spectral.warp, parameters.pitch *parameters.spectral.refresh_rate * 0.003f);
+  PhaseEffect(temp, ifft_in, parameters.spectral.warp, parameters.pitch *parameters.spectral.refresh_rate * 0.3f);
   PolarToRectangular(ifft_in);
 
   if (!glitch) {
@@ -408,7 +408,7 @@ void FrameTransformation::PhaseEffect(
   // phasor near 0 → scramble_b_ dominant → re-scramble scramble_a_ (inactive).
   if (scramble_phasor_ > 0.9f || scramble_phasor_ < 0.1f) {
     bool use_stride = (amount > 0.5f);
-    int32_t* inactive = (scramble_phasor_ > 0.5f) ? scramble_b_ : scramble_a_;
+    int32_t* inactive = (scramble_phasor_ > 0.5f) ? scramble_a_ : scramble_b_;
     for (int32_t i = 0; i < size_; ++i) inactive[i] = i;
     if (use_stride) {
       StridePermutation(inactive, size_);
