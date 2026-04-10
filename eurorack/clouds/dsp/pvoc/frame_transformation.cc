@@ -100,6 +100,7 @@ void FrameTransformation::Reset() {
   prev_record_reset_ = false;
   prev_phasor_reset_ = false;
   shuffling_prev_amount_ = 0.0f;
+  scramble_phasor_ = 0.0f;
   idle_ = true;
   rec_count_ = 0;
   //prev_record_mode_ = 0; //This could NOT by set here!!! Reset does not mean init.
@@ -183,7 +184,7 @@ void FrameTransformation::Process(
   }
   QuantizeMagnitudes(ifft_in, parameters.spectral.quantization);
   SetPhases(ifft_in, parameters.spectral.phase_randomization, parameters.pitch);
-  PhaseEffect(temp, ifft_in, parameters.spectral.warp);
+  PhaseEffect(temp, ifft_in, parameters.spectral.warp, parameters.spectral.refresh_rate * 0.003f);
   PolarToRectangular(ifft_in);
 
   if (!glitch) {
@@ -368,51 +369,82 @@ void FrameTransformation::WarpMagnitudes(
   }
 }
 
+static int32_t Gcd(int32_t a, int32_t b) {
+  while (b) { int32_t t = b; b = a % b; a = t; }
+  return a;
+}
+
+static void FisherYates(int32_t* arr, int32_t size) {
+  for (int32_t i = size - 1; i > 0; --i) {
+    int32_t j = static_cast<uint16_t>(stmlib::Random::GetSample()) % (i + 1);
+    int32_t tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+  }
+}
+
+static void StridePermutation(int32_t* arr, int32_t size) {
+  // Coprime stride: creates a structured interleave — opposite character to Fisher-Yates.
+  // Pick a random odd stride that is coprime with size.
+  int32_t stride = (static_cast<uint16_t>(stmlib::Random::GetSample()) % (size / 2)) | 1;
+  while (Gcd(stride, size) != 1) stride += 2;
+  for (int32_t i = 0; i < size; ++i) {
+    arr[i] = (static_cast<int32_t>(i) * stride) % size;
+  }
+}
+
 void FrameTransformation::PhaseEffect(
     float* source,
     float* xf_polar,
-    float amount) {
+    float amount,
+    float rationSpeed) {
+  // Always advance phasor — free-running regardless of amount.
+  scramble_phasor_ += rationSpeed;
+  if (scramble_phasor_ > 1.0f) scramble_phasor_ -= 1.0f;
+  if (scramble_phasor_ < 0.0f) scramble_phasor_ += 1.0f;
+
   if (amount == 0.5f) return;
 
-  // Re-scramble both permutations when amount jumps significantly.
-  if (fabsf(amount - shuffling_prev_amount_) > 0.15f) {
-    for (int32_t i = size_ - 1; i > 0; --i) {
-      int32_t j = static_cast<uint16_t>(stmlib::Random::GetSample()) % (i + 1);
-      int32_t tmp = scramble_a_[i]; scramble_a_[i] = scramble_a_[j]; scramble_a_[j] = tmp;
+  // At phasor seams, re-scramble the inactive permutation (barely audible one).
+  // phasor near 1 → scramble_a_ dominant → re-scramble scramble_b_ (inactive).
+  // phasor near 0 → scramble_b_ dominant → re-scramble scramble_a_ (inactive).
+  if (scramble_phasor_ > 0.9f || scramble_phasor_ < 0.1f) {
+    bool use_stride = (amount > 0.5f);
+    int32_t* inactive = (scramble_phasor_ > 0.5f) ? scramble_b_ : scramble_a_;
+    for (int32_t i = 0; i < size_; ++i) inactive[i] = i;
+    if (use_stride) {
+      StridePermutation(inactive, size_);
+    } else {
+      FisherYates(inactive, size_);
     }
-    for (int32_t i = size_ - 1; i > 0; --i) {
-      int32_t j = static_cast<uint16_t>(stmlib::Random::GetSample()) % (i + 1);
-      int32_t tmp = scramble_b_[i]; scramble_b_[i] = scramble_b_[j]; scramble_b_[j] = tmp;
-    }
-    shuffling_prev_amount_ = amount;
   }
 
-  float t;
-  int32_t* scramble;
-  if (amount < 0.5f) {
-    t = 1.0f - amount * 2.0f;   // [0..1] as amount goes [0.5..0.0]
-    scramble = scramble_a_;
-  } else {
-    t = (amount - 0.5f) * 2.0f; // [0..1] as amount goes [0.5..1.0]
-    scramble = scramble_b_;
-  }
+  // t: how much scramble vs identity.
+  float t = (amount < 0.5f) ? 1.0f - amount * 2.0f
+                             : (amount - 0.5f) * 2.0f;
 
-  // Copy original magnitudes and phases into scratch buffer (source = temp).
+  // Phasor crossfades between scramble_a_ and scramble_b_.
+  float p = scramble_phasor_;
+
   float*    orig_mag   = source;
   uint32_t* orig_phase = reinterpret_cast<uint32_t*>(source + size_);
   float*    mag        = &xf_polar[0];
   uint32_t* phase      = reinterpret_cast<uint32_t*>(&xf_polar[fft_size_ >> 1]);
 
-  for (int32_t i = 0; i < size_; ++i) { orig_mag[i] = mag[i]; }
+  for (int32_t i = 0; i < size_; ++i) { orig_mag[i]   = mag[i]; }
   for (int32_t i = 0; i < size_; ++i) { orig_phase[i] = phase[i]; }
 
-  // For each bin i, interpolate between its own value and the scrambled bin's value.
   for (int32_t i = 1; i < size_; ++i) {
-    int32_t j = scramble[i];
-    mag[i] = orig_mag[i] + t * (orig_mag[j] - orig_mag[i]);
+    // Crossfade between scramble_b_ (p=0) and scramble_a_ (p=1).
+    int32_t ja = scramble_a_[i];
+    int32_t jb = scramble_b_[i];
+    float scrambled_mag   = orig_mag[jb]   + p * (orig_mag[ja]   - orig_mag[jb]);
+    float dpp = static_cast<float>(orig_phase[ja]) - static_cast<float>(orig_phase[jb]);
+    if (dpp >  32768.0f) dpp -= 65536.0f;
+    if (dpp < -32768.0f) dpp += 65536.0f;
+    float scrambled_phase = static_cast<float>(orig_phase[jb]) + p * dpp;
 
-    // Phase interpolation with wrap-around.
-    float dp = static_cast<float>(orig_phase[j]) - static_cast<float>(orig_phase[i]);
+    // Blend scrambled result with identity based on t.
+    mag[i] = orig_mag[i] + t * (scrambled_mag - orig_mag[i]);
+    float dp = scrambled_phase - static_cast<float>(orig_phase[i]);
     if (dp >  32768.0f) dp -= 65536.0f;
     if (dp < -32768.0f) dp += 65536.0f;
     float new_phase = static_cast<float>(orig_phase[i]) + t * dp;
