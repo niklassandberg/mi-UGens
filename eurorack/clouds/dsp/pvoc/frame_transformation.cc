@@ -99,6 +99,7 @@ void FrameTransformation::Reset() {
   prev_record_ = false;
   prev_record_reset_ = false;
   prev_phasor_reset_ = false;
+  shuffling_prev_amount_ = 0.0f;
   idle_ = true;
   rec_count_ = 0;
   //prev_record_mode_ = 0; //This could NOT by set here!!! Reset does not mean init.
@@ -372,6 +373,19 @@ void FrameTransformation::PhaseEffect(
     float* xf_polar,
     float amount) {
   if (amount == 0.5f) return;
+
+  // Re-scramble both permutations when amount jumps significantly.
+  if (fabsf(amount - shuffling_prev_amount_) > 0.15f) {
+    for (int32_t i = size_ - 1; i > 0; --i) {
+      int32_t j = static_cast<uint16_t>(stmlib::Random::GetSample()) % (i + 1);
+      int32_t tmp = scramble_a_[i]; scramble_a_[i] = scramble_a_[j]; scramble_a_[j] = tmp;
+    }
+    for (int32_t i = size_ - 1; i > 0; --i) {
+      int32_t j = static_cast<uint16_t>(stmlib::Random::GetSample()) % (i + 1);
+      int32_t tmp = scramble_b_[i]; scramble_b_[i] = scramble_b_[j]; scramble_b_[j] = tmp;
+    }
+    shuffling_prev_amount_ = amount;
+  }
 
   float t;
   int32_t* scramble;

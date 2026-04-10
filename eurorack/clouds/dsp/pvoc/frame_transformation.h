@@ -113,6 +113,7 @@ class FrameTransformation {
   // Bin scramble permutation arrays (size_ int32_t each, cast from float* allocation).
   int32_t* scramble_a_;
   int32_t* scramble_b_;
+  float shuffling_prev_amount_;
 
   // Current synthesis phase tracking.
   float* phases_;
