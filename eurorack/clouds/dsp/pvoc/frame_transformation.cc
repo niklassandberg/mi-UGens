@@ -184,7 +184,7 @@ void FrameTransformation::Process(
   }
   QuantizeMagnitudes(ifft_in, parameters.spectral.quantization);
   SetPhases(ifft_in, parameters.spectral.phase_randomization, parameters.pitch);
-  PhaseEffect(temp, ifft_in, parameters.spectral.warp, parameters.spectral.refresh_rate * 0.003f);
+  PhaseEffect(temp, ifft_in, parameters.spectral.warp, parameters.pitch *parameters.spectral.refresh_rate * 0.003f);
   PolarToRectangular(ifft_in);
 
   if (!glitch) {
