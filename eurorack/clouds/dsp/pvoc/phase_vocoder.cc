@@ -81,9 +81,10 @@ void PhaseVocoder::Init(
   }
   for (int32_t i = 0; i < num_channels_; ++i) {
     // Allocate rec_buf + play_buf (each num_textures * fft_size floats, full
-    // split-complex frames) plus 4*texture_size for fixed-size buffers.
+    // split-complex frames) plus 4*texture_size for fixed-size buffers,
+    // plus 2*texture_size for scramble_a_ and scramble_b_ (int32_t, same size as float).
     float* texture_buffer = allocator[i]->Allocate<float>(
-        2 * num_textures * fft_size + 4 * texture_size);
+        2 * num_textures * fft_size + 6 * texture_size);
     frame_transformation_[i].Init(texture_buffer, fft_size, num_textures, fft_size / hop_ratio);
   }
 }

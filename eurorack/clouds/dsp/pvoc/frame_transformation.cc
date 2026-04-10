@@ -58,7 +58,9 @@ void FrameTransformation::Init(
   //   phases_            : size_
   //   phases_delta_      : size_
   //   phase_texture_buf_ : 2 * size_  (live angle + feedback blend)
-  // Total = 2*num_textures_*fft_size_ + 4*size_  (matches phase_vocoder.cc allocation)
+  //   scramble_a_        : size_  (int32_t, same byte size as float)
+  //   scramble_b_        : size_  (int32_t, same byte size as float)
+  // Total = 2*num_textures_*fft_size_ + 6*size_  (matches phase_vocoder.cc allocation)
   num_textures_ = num_textures;
   rec_buf_ = buffer;
   play_buf_ = buffer + num_textures_ * fft_size_;
@@ -66,7 +68,20 @@ void FrameTransformation::Init(
   phases_ = buffer + 2 * num_textures_ * fft_size_;
   phases_delta_ = phases_ + size_;
   phase_texture_buffer_ = phases_delta_ + size_;
+  scramble_a_ = reinterpret_cast<int32_t*>(phase_texture_buffer_ + 2 * size_);
+  scramble_b_ = scramble_a_ + size_;
   prev_record_mode_ = 0;
+
+  // Generate two independent random bin permutations (Fisher-Yates).
+  for (int32_t i = 0; i < size_; ++i) { scramble_a_[i] = i; scramble_b_[i] = i; }
+  for (int32_t i = size_ - 1; i > 0; --i) {
+    int32_t j = static_cast<uint16_t>(stmlib::Random::GetSample()) % (i + 1);
+    int32_t tmp = scramble_a_[i]; scramble_a_[i] = scramble_a_[j]; scramble_a_[j] = tmp;
+  }
+  for (int32_t i = size_ - 1; i > 0; --i) {
+    int32_t j = static_cast<uint16_t>(stmlib::Random::GetSample()) % (i + 1);
+    int32_t tmp = scramble_b_[i]; scramble_b_[i] = scramble_b_[j]; scramble_b_[j] = tmp;
+  }
 
   glitch_algorithm_ = 0;
   Reset();
@@ -167,7 +182,7 @@ void FrameTransformation::Process(
   }
   QuantizeMagnitudes(ifft_in, parameters.spectral.quantization);
   SetPhases(ifft_in, parameters.spectral.phase_randomization, parameters.pitch);
-  PhaseEffect(nullptr, ifft_in, parameters.spectral.warp);
+  PhaseEffect(temp, ifft_in, parameters.spectral.warp);
   PolarToRectangular(ifft_in);
 
   if (!glitch) {
@@ -356,26 +371,40 @@ void FrameTransformation::PhaseEffect(
     float* source,
     float* xf_polar,
     float amount) {
-  uint32_t* phase = (uint32_t*)&xf_polar[fft_size_ >> 1];
+  if (amount == 0.5f) return;
 
+  float t;
+  int32_t* scramble;
   if (amount < 0.5f) {
-    // Fx1: Robotization — blend all bin phases toward 0.
-    // Full effect at amount=0.0, no effect at amount=0.5.
-    float t = 1.0f - amount * 2.0f;
-    for (int32_t i = 0; i < size_; ++i) {
-      phase[i] = static_cast<uint32_t>(static_cast<float>(phase[i]) * (1.0f - t));
-    }
-  } else if (amount > 0.5f) {
-    // Fx2: Phase dispersion — add a bin-dependent extra increment to phases_[].
-    // Accumulates each hop: higher bins rotate progressively faster.
-    // No effect at amount=0.5, full dispersion at amount=1.0.
-    float t = (amount - 0.5f) * 2.0f;
-    float rate = t * 64.0f;
-    for (int32_t i = 1; i < size_; ++i) {
-      phases_[i] += i * rate;
-      if (phases_[i] >= 65536.0f) phases_[i] -= 65536.0f;
-      else if (phases_[i] < 0.0f)  phases_[i] += 65536.0f;
-    }
+    t = 1.0f - amount * 2.0f;   // [0..1] as amount goes [0.5..0.0]
+    scramble = scramble_a_;
+  } else {
+    t = (amount - 0.5f) * 2.0f; // [0..1] as amount goes [0.5..1.0]
+    scramble = scramble_b_;
+  }
+
+  // Copy original magnitudes and phases into scratch buffer (source = temp).
+  float*    orig_mag   = source;
+  uint32_t* orig_phase = reinterpret_cast<uint32_t*>(source + size_);
+  float*    mag        = &xf_polar[0];
+  uint32_t* phase      = reinterpret_cast<uint32_t*>(&xf_polar[fft_size_ >> 1]);
+
+  for (int32_t i = 0; i < size_; ++i) { orig_mag[i] = mag[i]; }
+  for (int32_t i = 0; i < size_; ++i) { orig_phase[i] = phase[i]; }
+
+  // For each bin i, interpolate between its own value and the scrambled bin's value.
+  for (int32_t i = 1; i < size_; ++i) {
+    int32_t j = scramble[i];
+    mag[i] = orig_mag[i] + t * (orig_mag[j] - orig_mag[i]);
+
+    // Phase interpolation with wrap-around.
+    float dp = static_cast<float>(orig_phase[j]) - static_cast<float>(orig_phase[i]);
+    if (dp >  32768.0f) dp -= 65536.0f;
+    if (dp < -32768.0f) dp += 65536.0f;
+    float new_phase = static_cast<float>(orig_phase[i]) + t * dp;
+    if (new_phase < 0.0f)      new_phase += 65536.0f;
+    if (new_phase >= 65536.0f) new_phase -= 65536.0f;
+    phase[i] = static_cast<uint32_t>(new_phase);
   }
 }
 

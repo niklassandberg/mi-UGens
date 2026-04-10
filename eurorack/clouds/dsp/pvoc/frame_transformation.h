@@ -110,6 +110,10 @@ class FrameTransformation {
   // Live input angle tracking (size_ floats) + feedback blend buffer (size_ floats).
   float* phase_texture_buffer_;
 
+  // Bin scramble permutation arrays (size_ int32_t each, cast from float* allocation).
+  int32_t* scramble_a_;
+  int32_t* scramble_b_;
+
   // Current synthesis phase tracking.
   float* phases_;
   float* phases_delta_;
