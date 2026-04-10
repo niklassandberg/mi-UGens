@@ -160,13 +160,14 @@ void FrameTransformation::Process(
   float* temp = &fft_out[0];
 
 
-  WarpMagnitudes(ifft_in, temp, parameters.spectral.warp);
-  ShiftMagnitudes(temp, ifft_in, parameters.pitch);
+  ShiftMagnitudes(ifft_in, ifft_in, parameters.pitch);
+  //ShiftMagnitudes(temp, ifft_in, parameters.pitch);
   if (glitch) {
     AddGlitch(ifft_in);
   }
   QuantizeMagnitudes(ifft_in, parameters.spectral.quantization);
   SetPhases(ifft_in, parameters.spectral.phase_randomization, parameters.pitch);
+  PhaseEffect(nullptr, ifft_in, parameters.spectral.warp);
   PolarToRectangular(ifft_in);
 
   if (!glitch) {
@@ -348,6 +349,30 @@ void FrameTransformation::WarpMagnitudes(
     f += bin_width;
     float wf = (d + f * (c + f * (b + a * f))) * size_;
     xf_polar[i] = Interpolate(source, wf, 1.0f);
+  }
+}
+
+void FrameTransformation::PhaseEffect(
+    float* source,
+    float* xf_polar,
+    float amount) {
+  uint32_t* phase = (uint32_t*)&xf_polar[fft_size_ >> 1];
+
+  if (amount < 0.5f) {
+    // Fx1: Robotization — blend all bin phases toward 0.
+    // Full effect at amount=0.0, no effect at amount=0.5.
+    float t = 1.0f - amount * 2.0f;
+    for (int32_t i = 0; i < size_; ++i) {
+      phase[i] = static_cast<uint32_t>(static_cast<float>(phase[i]) * (1.0f - t));
+    }
+  } else if (amount > 0.5f) {
+    // Fx2: Phase dispersion — linearly growing phase offset per bin.
+    // No effect at amount=0.5, full dispersion at amount=1.0.
+    float t = (amount - 0.5f) * 2.0f;
+    uint32_t spread = static_cast<uint32_t>(t * 512.0f);
+    for (int32_t i = 1; i < size_; ++i) {
+      phase[i] += static_cast<uint32_t>(i) * spread;
+    }
   }
 }
 

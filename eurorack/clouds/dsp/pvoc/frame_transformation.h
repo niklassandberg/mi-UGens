@@ -75,6 +75,7 @@ class FrameTransformation {
   void moveWrriteHead(const Parameters &parameters);
   void BlendFeedback(float *xf_polar, float feedback, float *a);
   void SetPhases(float* destination, float diffusion, float pitch_ratio);
+  void PhaseEffect(float* source, float* xf_polar, float amount);
   void ReplayFFT(float* xf_polar, float position, float speed, float size_param);
   void DiffuseMagnitudes(float* xf_polar, float diffusion);
 
