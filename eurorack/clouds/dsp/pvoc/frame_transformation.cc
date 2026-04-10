@@ -366,12 +366,15 @@ void FrameTransformation::PhaseEffect(
       phase[i] = static_cast<uint32_t>(static_cast<float>(phase[i]) * (1.0f - t));
     }
   } else if (amount > 0.5f) {
-    // Fx2: Phase dispersion — linearly growing phase offset per bin.
+    // Fx2: Phase dispersion — add a bin-dependent extra increment to phases_[].
+    // Accumulates each hop: higher bins rotate progressively faster.
     // No effect at amount=0.5, full dispersion at amount=1.0.
     float t = (amount - 0.5f) * 2.0f;
-    uint32_t spread = static_cast<uint32_t>(t * 512.0f);
+    float rate = t * 64.0f;
     for (int32_t i = 1; i < size_; ++i) {
-      phase[i] += static_cast<uint32_t>(i) * spread;
+      phases_[i] += i * rate;
+      if (phases_[i] >= 65536.0f) phases_[i] -= 65536.0f;
+      else if (phases_[i] < 0.0f)  phases_[i] += 65536.0f;
     }
   }
 }
