@@ -44,6 +44,18 @@ namespace clouds {
 using namespace std;
 using namespace stmlib;
 
+static void FillSineWindow(float* window, size_t size) {
+  for (size_t i = 0; i < size; ++i) {
+    window[i] = sinf(3.14159265358979f * i / size);
+  }
+}
+
+static void FillHannWindow(float* window, size_t size) {
+  for (size_t i = 0; i < size; ++i) {
+    window[i] = 0.5f * (1.0f - cosf(2.0f * 3.14159265358979f * i / size));
+  }
+}
+
 void GranularProcessor::Init(
     void* large_buffer, size_t large_buffer_size,
     void* small_buffer, size_t small_buffer_size) {
@@ -459,9 +471,7 @@ void GranularProcessor::Prepare() {
       static float window[kMaxFftSize];
       static bool window_ready = false;
       if (!window_ready) {
-        for (size_t i = 0; i < kMaxFftSize; ++i) {
-          window[i] = sinf(3.14159265358979f * i / kMaxFftSize);
-        }
+        FillHannWindow(window, kMaxFftSize);  // or FillSineWindow
         window_ready = true;
       }
       phase_vocoder_.Init(
