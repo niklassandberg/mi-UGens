@@ -186,8 +186,8 @@ void FrameTransformation::Process(
     AddGlitch(ifft_in);
   }
   QuantizeMagnitudes(ifft_in, parameters.spectral.quantization);
-  SetPhases(ifft_in, parameters.spectral.phase_randomization, parameters.pitch, parameters.spectral.speed);
-  PhaseEffect(temp, ifft_in, parameters.spectral.warp, parameters.pitch *parameters.spectral.refresh_rate * 0.03f);
+  SetPhases(ifft_in, parameters.spectral.phase_randomization, parameters.pitch, parameters.spectral.warp);
+  //PhaseEffect(temp, ifft_in, parameters.spectral.warp, parameters.pitch *parameters.spectral.refresh_rate * 0.03f);
   PolarToRectangular(ifft_in);
 
   if (!glitch) {
@@ -223,16 +223,13 @@ void FrameTransformation::SetPhases(
     float* destination,
     float phase_randomization,
     float pitch_ratio,
-    float speed) {
+    float blend) {
   uint32_t* synthesis_phase = (uint32_t*) &destination[fft_size_ >> 1];
-  float abs_speed = speed < 0.0f ? -speed : speed;
-  if (abs_speed > 1.0f) abs_speed = 1.0f;
-  float inv_speed = abs_speed > 0.05f ? 1.0f / abs_speed : 0.0f;
   for (int32_t i = 0; i < size_; ++i) {
     synthesis_phase[i] = static_cast<uint32_t>(phases_[i]);
     float natural = static_cast<float>(i) * natural_phase_inc_;
-    float true_delta = phases_delta_[i] * inv_speed; // normalize out speed scaling
-    float advance = Crossfade(natural, true_delta, abs_speed);
+    float true_delta = phases_delta_[i];
+    float advance = Crossfade(natural, true_delta, blend);
     phases_[i] += advance * pitch_ratio;
     if (phases_[i] >= 65536.0f) phases_[i] -= 65536.0f;
     else if (phases_[i] < 0.0f) phases_[i] += 65536.0f;
