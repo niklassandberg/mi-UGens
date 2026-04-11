@@ -225,12 +225,14 @@ void FrameTransformation::SetPhases(
     float pitch_ratio,
     float speed) {
   uint32_t* synthesis_phase = (uint32_t*) &destination[fft_size_ >> 1];
-  float blend = speed < 0.0f ? -speed : speed;
-  if (blend > 1.0f) blend = 1.0f;
+  float abs_speed = speed < 0.0f ? -speed : speed;
+  if (abs_speed > 1.0f) abs_speed = 1.0f;
+  float inv_speed = abs_speed > 0.05f ? 1.0f / abs_speed : 0.0f;
   for (int32_t i = 0; i < size_; ++i) {
     synthesis_phase[i] = static_cast<uint32_t>(phases_[i]);
     float natural = static_cast<float>(i) * natural_phase_inc_;
-    float advance = phases_delta_[i] * blend + natural * (1.0f - blend);
+    float true_delta = phases_delta_[i] * inv_speed; // normalize out speed scaling
+    float advance = Crossfade(natural, true_delta, abs_speed);
     phases_[i] += advance * pitch_ratio;
     if (phases_[i] >= 65536.0f) phases_[i] -= 65536.0f;
     else if (phases_[i] < 0.0f) phases_[i] += 65536.0f;
