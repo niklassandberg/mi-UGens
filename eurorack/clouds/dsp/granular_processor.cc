@@ -471,7 +471,7 @@ void GranularProcessor::Prepare() {
       static float window[kMaxFftSize];
       static bool window_ready = false;
       if (!window_ready) {
-        FillHannWindow(window, kMaxFftSize);  // or FillSineWindow
+        FillSineWindow(window, kMaxFftSize);  // or FillSineWindow/FillHannWindow
         window_ready = true;
       }
       phase_vocoder_.Init(
