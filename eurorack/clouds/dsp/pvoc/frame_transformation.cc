@@ -86,11 +86,8 @@ void FrameTransformation::Init(
   glitch_algorithm_ = 0;
   Reset();
 
-  // Precompute natural bin phase advances per hop (standard phase vocoder formula).
-  // SetPhases uses: phases_[i] += phases_delta_[i] * pitch_ratio
-  for (int32_t i = 0; i < size_; ++i) {
-    phases_delta_[i] = static_cast<float>(i) * hop_size * 65536.0f / static_cast<float>(fft_size_);
-  }
+  // Factor for natural bin phase advance per hop: bin i advances by i * natural_phase_inc_.
+  natural_phase_inc_ = hop_size * 65536.0f / static_cast<float>(fft_size_);
 }
 
 void FrameTransformation::Reset() {
@@ -189,7 +186,7 @@ void FrameTransformation::Process(
     AddGlitch(ifft_in);
   }
   QuantizeMagnitudes(ifft_in, parameters.spectral.quantization);
-  SetPhases(ifft_in, parameters.spectral.phase_randomization, parameters.pitch);
+  SetPhases(ifft_in, parameters.spectral.phase_randomization, parameters.pitch, parameters.spectral.speed);
   PhaseEffect(temp, ifft_in, parameters.spectral.warp, parameters.pitch *parameters.spectral.refresh_rate * 0.03f);
   PolarToRectangular(ifft_in);
 
@@ -214,6 +211,10 @@ void FrameTransformation::RectangularToPolar(float* fft_data) {
   float* magnitude = &fft_data[0];
   for (int32_t i = 1; i < size_; ++i) {
     uint16_t angle = fast_atan2r(imag[i], real[i], &magnitude[i]);
+    float delta = angle - phase_texture_buffer_[i];
+    if (delta > 32768.0f) delta -= 65536.0f;
+    else if (delta < -32768.0f) delta += 65536.0f;
+    phases_delta_[i] = delta;
     phase_texture_buffer_[i] = angle;
   }
 }
@@ -221,11 +222,16 @@ void FrameTransformation::RectangularToPolar(float* fft_data) {
 void FrameTransformation::SetPhases(
     float* destination,
     float phase_randomization,
-    float pitch_ratio) {
+    float pitch_ratio,
+    float speed) {
   uint32_t* synthesis_phase = (uint32_t*) &destination[fft_size_ >> 1];
+  float blend = speed < 0.0f ? -speed : speed;
+  if (blend > 1.0f) blend = 1.0f;
   for (int32_t i = 0; i < size_; ++i) {
     synthesis_phase[i] = static_cast<uint32_t>(phases_[i]);
-    phases_[i] += phases_delta_[i] * pitch_ratio;
+    float natural = static_cast<float>(i) * natural_phase_inc_;
+    float advance = phases_delta_[i] * blend + natural * (1.0f - blend);
+    phases_[i] += advance * pitch_ratio;
     if (phases_[i] >= 65536.0f) phases_[i] -= 65536.0f;
     else if (phases_[i] < 0.0f) phases_[i] += 65536.0f;
   }

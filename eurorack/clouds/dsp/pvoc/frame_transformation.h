@@ -74,7 +74,7 @@ class FrameTransformation {
   void BlendFFT(float* fft_in);
   void moveWrriteHead(const Parameters &parameters);
   void BlendFeedback(float *xf_polar, float feedback, float *a);
-  void SetPhases(float* destination, float diffusion, float pitch_ratio);
+  void SetPhases(float* destination, float diffusion, float pitch_ratio, float speed);
   void PhaseEffect(float* source, float* xf_polar, float amount, float rationSpeed);
   void ReplayFFT(float* xf_polar, float position, float speed, float size_param);
   void DiffuseMagnitudes(float* xf_polar, float diffusion);
@@ -90,6 +90,7 @@ class FrameTransformation {
   int32_t size_;
   int32_t write_head_;
   int32_t latency_frames_; // fft_size / (2 * hop_size), computed in Init
+  float natural_phase_inc_; // hop_size * 65536 / fft_size, for blend in SetPhases
 
   int32_t phasor_index_;
   float phasor_fractional_;
