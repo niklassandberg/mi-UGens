@@ -85,6 +85,12 @@ void FrameTransformation::Init(
 
   glitch_algorithm_ = 0;
   Reset();
+
+  // Precompute natural bin phase advances per hop (standard phase vocoder formula).
+  // SetPhases uses: phases_[i] += phases_delta_[i] * pitch_ratio
+  for (int32_t i = 0; i < size_; ++i) {
+    phases_delta_[i] = static_cast<float>(i) * hop_size * 65536.0f / static_cast<float>(fft_size_);
+  }
 }
 
 void FrameTransformation::Reset() {
@@ -208,10 +214,6 @@ void FrameTransformation::RectangularToPolar(float* fft_data) {
   float* magnitude = &fft_data[0];
   for (int32_t i = 1; i < size_; ++i) {
     uint16_t angle = fast_atan2r(imag[i], real[i], &magnitude[i]);
-    float delta = angle - phase_texture_buffer_[i];
-    if (delta > 32768.0f) delta -= 65536.0f;
-    else if (delta < -32768.0f) delta += 65536.0f;
-    phases_delta_[i] = delta;
     phase_texture_buffer_[i] = angle;
   }
 }
